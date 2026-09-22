@@ -1,0 +1,23 @@
+# SwiftPM build output and Xcode user settings
+/.build/
+xcuserdata/
+
+# Nix build output links
+/result
+/result-*
+
+# Documentation dependencies, build output, and generated options
+/node_modules/
+/docs/site/dist/
+/docs/site/public/options.json
+/*.tsbuildinfo
+/vite.config.ts.timestamp-*
+npm-debug.log*
+
+# Python bytecode and Markdown lint cache
+__pycache__/
+*.py[cod]
+.rumdl_cache/
+
+# macOS metadata
+.DS_Store

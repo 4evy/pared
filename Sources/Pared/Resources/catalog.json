@@ -1,0 +1,304 @@
+{
+  "schemaVersion": 1,
+  "features": {
+    "siri": {
+      "description": "Siri assistant",
+      "preferences": [
+        {
+          "domain": "com.apple.assistant.support",
+          "key": "Assistant Enabled",
+          "inverted": false
+        },
+        {
+          "domain": "com.apple.Siri",
+          "key": "StatusMenuVisible",
+          "inverted": false
+        }
+      ],
+      "restrictions": ["allowAssistant"],
+      "declarations": [],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "siriVoiceTrigger": {
+      "description": "Siri voice trigger",
+      "preferences": [
+        {
+          "domain": "com.apple.Siri",
+          "key": "VoiceTriggerUserEnabled",
+          "inverted": false
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": []
+    },
+    "externalIntelligence": {
+      "description": "External AI integrations",
+      "preferences": [],
+      "restrictions": ["allowExternalIntelligenceIntegrations"],
+      "declarations": ["external.Enabled", "external.AllowSignIn"],
+      "assetSets": []
+    },
+    "writingTools": {
+      "description": "Writing Tools",
+      "preferences": [],
+      "restrictions": ["allowWritingTools"],
+      "declarations": ["intelligence.AllowWritingTools"],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "genmoji": {
+      "description": "Genmoji",
+      "preferences": [],
+      "restrictions": ["allowGenmoji"],
+      "declarations": ["intelligence.AllowGenmoji"],
+      "assetSets": [
+        "com.apple.MobileAsset.UAF.FM.Visual",
+        "com.apple.modelcatalog"
+      ],
+      "recovery": {
+        "subscriber": "org.pared",
+        "name": "genmoji",
+        "usageAliases": {
+          "VisualGeneration.KeyboardEmojiGenerator": "language_en"
+        },
+        "additionalAssetSets": ["com.apple.MobileAsset.UAF.FM.Overrides"],
+        "minimumOSMajorVersion": 27
+      }
+    },
+    "imagePlayground": {
+      "description": "Image Playground",
+      "preferences": [],
+      "restrictions": ["allowImagePlayground"],
+      "declarations": ["intelligence.AllowImagePlayground"],
+      "assetSets": [
+        "com.apple.MobileAsset.UAF.FM.Visual",
+        "com.apple.modelcatalog"
+      ],
+      "recovery": {
+        "subscriber": "org.pared",
+        "name": "imagePlayground",
+        "usageAliases": {
+          "VisualGeneration.GenerativePlayground": "language_en"
+        },
+        "additionalAssetSets": ["com.apple.MobileAsset.UAF.FM.Overrides"],
+        "minimumOSMajorVersion": 27
+      }
+    },
+    "mailSmartReplies": {
+      "description": "Mail smart replies",
+      "preferences": [],
+      "restrictions": ["allowMailSmartReplies"],
+      "declarations": ["intelligence.Apps.Mail.AllowSmartReplies"],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "mailSummaries": {
+      "description": "Mail manual summaries",
+      "preferences": [],
+      "restrictions": ["allowMailSummary"],
+      "declarations": ["intelligence.Apps.Mail.AllowSummary"],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "mailAutomaticSummaries": {
+      "description": "Mail automatic summaries",
+      "preferences": [
+        {
+          "domain": "group.com.apple.mail",
+          "key": "DisableAutomaticMessageSummarization",
+          "inverted": true
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "mailPersonalizedReplies": {
+      "description": "Mail personalized replies",
+      "preferences": [
+        {
+          "domain": "group.com.apple.mail",
+          "key": "PersonalizedSmartReplies",
+          "inverted": false
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "notesSummaries": {
+      "description": "Notes transcription summaries",
+      "preferences": [],
+      "restrictions": ["allowNotesTranscriptionSummary"],
+      "declarations": ["intelligence.Apps.Notes.AllowTranscriptionSummary"],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "safariSummaries": {
+      "description": "Safari summaries",
+      "preferences": [],
+      "restrictions": ["allowSafariSummary"],
+      "declarations": ["intelligence.Apps.Safari.AllowSummary"],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "messagesSummaries": {
+      "description": "Messages summaries",
+      "preferences": [
+        {
+          "domain": "com.apple.MobileSMS",
+          "key": "messageSummarizationEnabled",
+          "inverted": false
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "notificationSummaries": {
+      "description": "Notification summaries",
+      "preferences": [
+        {
+          "domain": "group.com.apple.usernoted",
+          "key": "summarize_previews",
+          "inverted": false
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "inlinePredictions": {
+      "description": "Inline text predictions",
+      "preferences": [
+        {
+          "domain": ".GlobalPreferences",
+          "key": "NSAutomaticInlinePredictionEnabled",
+          "inverted": false
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": []
+    },
+    "spatialPhotos": {
+      "description": "Spatial Photos",
+      "preferences": [
+        {
+          "domain": "com.apple.spatialphotosrelive",
+          "key": "LocallyDisabled",
+          "inverted": true
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.MobileAsset.UAF.Photos.SpatialPhotosRelive"],
+      "recovery": {
+        "subscriber": "org.pared",
+        "name": "spatialPhotos",
+        "usageAliases": {
+          "spatialPhotos.relive.main": "default"
+        }
+      }
+    },
+    "visualIntelligence": {
+      "description": "Visual Intelligence (macOS 27+)",
+      "preferences": [],
+      "restrictions": [],
+      "declarations": ["intelligence.AllowVisualIntelligence"],
+      "assetSets": [
+        "com.apple.modelcatalog",
+        "com.apple.MobileAsset.UAF.FM.Visual"
+      ]
+    },
+    "calendarIntelligence": {
+      "description": "Calendar/Reminders natural-language editing (macOS 27+)",
+      "preferences": [],
+      "restrictions": [],
+      "declarations": [
+        "intelligence.Apps.Calendar.AllowNaturalLanguageEditing"
+      ],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "photosCleanup": {
+      "description": "Photos Clean Up model availability",
+      "preferences": [],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.MobileAsset.UAF.Photos.MagicCleanup"],
+      "recovery": {
+        "subscriber": "org.pared",
+        "name": "photosCleanup",
+        "usageAliases": {
+          "GenerativeEdit.CleanUp": "language_en"
+        }
+      }
+    },
+    "codeIntelligence": {
+      "description": "Code language model availability",
+      "preferences": [],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.MobileAsset.UAF.FM.CodeLM"],
+      "recovery": {
+        "subscriber": "org.pared",
+        "name": "codeIntelligence",
+        "usageAliases": {},
+        "assetSetUsages": {
+          "com.apple.MobileAsset.UAF.FM.CodeLM": {
+            "com.apple.fm.code.generate_small_v3.base.generic": "ENABLED",
+            "com.apple.fm.code.generate_small_v3.base.draft.generic": "ENABLED",
+            "com.apple.fm.code.generate_small_v3.tokenizer.generic": "ENABLED",
+            "com.apple.fm.code.generate_large_v3.base.generic": "ENABLED",
+            "com.apple.fm.code.generate_large_v3.base.draft.generic": "ENABLED",
+            "com.apple.fm.code.generate_large_v3.tokenizer.generic": "ENABLED",
+            "com.apple.fm.code.generate_safety_guardrail.base.generic": "ENABLED",
+            "com.apple.fm.code.generate_safety_guardrail.tokenizer.generic": "ENABLED"
+          }
+        },
+        "minimumOSMajorVersion": 27
+      }
+    },
+    "foundationModels": {
+      "description": "Shared Foundation Model availability",
+      "preferences": [],
+      "restrictions": [],
+      "declarations": [],
+      "assetSets": ["com.apple.modelcatalog"],
+      "recovery": {
+        "subscriber": "org.pared",
+        "name": "foundationModels",
+        "usageAliases": {
+          "com.apple.Settings.AppleIntelligence": "language_en"
+        },
+        "additionalAssetSets": [
+          "com.apple.MobileAsset.UAF.FM.Overrides",
+          "com.apple.MobileAsset.UAF.Shortcuts.Generator"
+        ],
+        "minimumOSMajorVersion": 27
+      }
+    }
+  },
+  "assetTypes": {
+    "com.apple.modelcatalog": "com.apple.MobileAsset.UAF.FM.GenerativeModels",
+    "com.apple.MobileAsset.UAF.FM.Visual": "com.apple.MobileAsset.UAF.FM.Visual",
+    "com.apple.MobileAsset.UAF.Photos.SpatialPhotosRelive": "com.apple.MobileAsset.UAF.Photos.SpatialPhotosRelive",
+    "com.apple.MobileAsset.UAF.Photos.MagicCleanup": "com.apple.MobileAsset.UAF.Photos.MagicCleanup",
+    "com.apple.MobileAsset.UAF.FM.CodeLM": "com.apple.MobileAsset.UAF.FM.CodeLM"
+  },
+  "preferenceUUIDs": {
+    ".GlobalPreferences": "AC52403B-C9C9-5D2A-88B8-D2F3FC907BDD",
+    "com.apple.Siri": "981C7262-4F2C-59C7-A7B1-2EFBABD12BB4",
+    "com.apple.assistant.support": "74671C55-D5CC-5B96-BE1D-63F471487769",
+    "com.apple.spatialphotosrelive": "8FE8D8DB-D187-5A4E-B442-71D92A65DF0F",
+    "group.com.apple.usernoted": "63D64C75-B64D-5D1B-8106-EC8B7849333D",
+    "com.apple.MobileSMS": "29B0BAC7-8386-5EC3-932E-E325D744380C",
+    "group.com.apple.mail": "EA0E23B7-D189-5689-B2A7-ABDFFDABC039",
+    "com.apple.MobileAsset": "AF7975DA-1BCF-4CBF-ACAB-72C42F42BA49"
+  },
+  "recoveryAssetTypes": {
+    "com.apple.MobileAsset.UAF.FM.Overrides": "com.apple.MobileAsset.UAF.FM.Overrides",
+    "com.apple.MobileAsset.UAF.Shortcuts.Generator": "com.apple.MobileAsset.UAF.Shortcuts.Generator"
+  },
+  "downloadBlocking": {
+    "domain": "com.apple.MobileAsset",
+    "keyPrefix": "DownloadServerBaseURLOverride-",
+    "url": "https://127.0.0.1:9/pared-blocked/"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "pared-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-options": "node docs/site/scripts/prepare-options.mjs",
+    "dev": "npm run prepare-options && vite --host 127.0.0.1",
+    "build": "npm run prepare-options && vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "mode-watcher": "^1.1.0",
+    "svelte": "^5.57.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6.0.3"
+  }
+}

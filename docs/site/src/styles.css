@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+input[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.option-summary-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+a,
+button,
+input {
+  @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#f6cf5e];
+}
+@media (prefers-reduced-motion: reduce) {
+  html.scroll-smooth {
+    scroll-behavior: auto;
+  }
+}

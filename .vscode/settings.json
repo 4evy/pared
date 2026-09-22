@@ -1,0 +1,54 @@
+{
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "nix.formatterPath": "nixfmt",
+  "files.associations": {
+    "*.h": "objective-c",
+    "flake.lock": "json"
+  },
+  "search.exclude": {
+    "**/.build": true,
+    "docs/site/dist": true,
+    "docs/site/public/options.json": true,
+    "result": true,
+    "result-*": true
+  },
+  "files.watcherExclude": {
+    "**/.build/**": true,
+    "**/node_modules/**": true,
+    "**/docs/site/dist/**": true,
+    "**/result/**": true,
+    "**/result-*/**": true
+  },
+  "[swift]": {
+    "editor.defaultFormatter": "swiftlang.swift-vscode",
+    "editor.formatOnSave": true
+  },
+  "[javascript][typescript][json][jsonc][css][html][svelte]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.formatOnSave": true
+  },
+  "[nix]": {
+    "editor.defaultFormatter": "jnoortheen.nix-ide",
+    "editor.formatOnSave": true
+  },
+  "[objective-c]": {
+    "editor.defaultFormatter": "xaver.clang-format",
+    "editor.formatOnSave": true
+  },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "rvben.rumdl",
+    "editor.formatOnSave": true,
+    "editor.wordWrapColumn": 80,
+    "editor.wordWrap": "wordWrapColumn"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  }
+}
