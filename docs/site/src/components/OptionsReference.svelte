@@ -67,12 +67,7 @@ onMount(() => {
 });
 </script>
 <section class={topSectionClass} aria-labelledby="sec-options">
-  <TitlePage id="sec-options" title="Configuration options" level={2} />
-  <p>
-    Generated from Pared's shared Nix module and feature catalog. These options
-    apply to both nix-darwin and Home Manager. Feature defaults inherit
-    <code>programs.pared.defaultState</code>.
-  </p>
+  <TitlePage id="sec-options" title="Option reference" level={2} />
   {#if error}
     <p role="alert">{error}</p>
     <button type="button" class={focusClass} onclick={() => void load()}>
@@ -81,21 +76,38 @@ onMount(() => {
   {:else if loading}
     <p role="status">Loading configuration options…</p>
   {:else}
-    <label class="mt-5 block font-semibold" for="option-search"
-      >Search options</label
-    >
-    <input
-      id="option-search"
-      type="search"
-      bind:value={query}
-      placeholder="Feature, option, or description"
-      class={`my-2 w-full rounded-sm border border-neutral-400 p-3 dark:bg-[#171d24] ${focusClass}`}
-    >
-    <div class="flex flex-wrap items-center gap-4 text-sm">
-      <p role="status">{matches.length} of {options.length} options</p>
-      <button type="button" class={focusClass} onclick={() => (query = '')}>
-        Clear search
-      </button>
+    <search class="options-toolbar" aria-label="Configuration options">
+      <label class="search-label" for="option-search"
+        >Search configuration options</label
+      >
+      <div class="option-search-field">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <input
+          id="option-search"
+          type="search"
+          bind:value={query}
+          placeholder="Name, description, or type"
+          autocomplete="off"
+        >
+        {#if query}
+          <button
+            type="button"
+            class="clear-search"
+            aria-label="Clear option search"
+            title="Clear search"
+            onclick={() => (query = '')}
+          >
+            ×
+          </button>
+        {/if}
+      </div>
+    </search>
+    <div class="option-actions">
+      <p role="status" aria-live="polite">
+        {query.trim()
+          ? `${matches.length} of ${options.length} options match your search`
+          : `${options.length} options available`}
+      </p>
       <button
         type="button"
         class={focusClass}

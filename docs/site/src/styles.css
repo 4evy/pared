@@ -2,6 +2,319 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+a,
+button,
+input {
+  @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#f6cf5e];
+}
+
+:root {
+  color-scheme: light;
+  --page: #fff;
+  --panel: #f7f8fa;
+  --ink: #24292f;
+  --muted: #626b76;
+  --line: #e1e4e8;
+  --accent: #245eaa;
+  --selected: #eaf1fb;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --page: #12171d;
+  --panel: #171d24;
+  --ink: #e1e6ed;
+  --muted: #9ca8b5;
+  --line: #2b333d;
+  --accent: #8ccff0;
+  --selected: #202e3b;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+}
+
+.docs-shell {
+  max-width: 1440px;
+  margin: auto;
+}
+
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 60;
+  padding: 12px 20px;
+  background: var(--page);
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+.manual-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--page);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+}
+
+.brand span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.section-navigation {
+  overflow-x: auto;
+  padding: 0 12px 10px;
+}
+
+.section-navigation ul {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.nav-link.active {
+  color: var(--accent);
+  background: var(--selected);
+  font-weight: 600;
+}
+
+.nav-label,
+.nav-source {
+  display: none;
+}
+
+.docs-content {
+  min-width: 0;
+  padding: 36px 28px 80px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.docs-intro {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-intro h1 {
+  margin: 0 0 14px;
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+  line-height: 1.25;
+}
+
+.intro-description {
+  max-width: 64ch;
+  color: var(--muted);
+}
+
+.intro-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: 20px;
+}
+
+.intro-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+
+.intro-links a {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.intro-links a:hover,
+.revision a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.revision {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.revision code {
+  margin-left: 4px;
+}
+
+.book > .section {
+  margin-top: 24px;
+  padding-top: 0;
+  border: 0;
+}
+
+.guide-section h2 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+}
+
+.book > .section .titlepage h2 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+}
+
+.book > .section .titlepage hgroup {
+  margin-bottom: 16px;
+}
+
+.options-toolbar {
+  display: block;
+  margin: 20px 0 8px;
+}
+
+.search-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.option-search-field {
+  position: relative;
+}
+
+.search-icon,
+.clear-search {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+
+.search-icon {
+  left: 14px;
+  font-size: 26px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+#option-search {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 44px;
+  background: var(--page);
+  color: var(--ink);
+  font-size: 16px;
+}
+
+#option-search::placeholder {
+  color: var(--muted);
+}
+
+.clear-search {
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clear-search:hover {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.option-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.option-actions p {
+  margin: 0 auto 0 0;
+}
+
+.option-actions button {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.option-actions button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.book [id] {
+  scroll-margin-top: 140px;
+}
+
+.guide-section {
+  max-width: 72ch;
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.guide-section pre {
+  font-size: 13px;
+}
+
+.book :not(pre) > code {
+  overflow-wrap: anywhere;
+}
+
 input[type="search"]::-webkit-search-cancel-button {
   appearance: none;
 }
@@ -12,11 +325,88 @@ input[type="search"]::-webkit-search-cancel-button {
   -webkit-line-clamp: 2;
 }
 
-a,
-button,
-input {
-  @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#f6cf5e];
+@media (min-width: 1024px) {
+  .docs-shell {
+    display: grid;
+    grid-template-columns: 248px minmax(0, 1fr);
+  }
+
+  .manual-nav {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .nav-brand {
+    padding: 28px 20px;
+  }
+
+  .section-navigation {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+  }
+
+  .section-navigation ul {
+    display: block;
+  }
+
+  .nav-label {
+    display: block;
+    margin: 0 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .nav-link {
+    margin: 2px 0;
+  }
+
+  .nav-source {
+    display: block;
+    padding: 22px 24px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .nav-source:hover {
+    color: var(--accent);
+  }
+
+  .docs-content {
+    max-width: 1056px;
+    padding: 48px clamp(32px, 5vw, 72px) 100px;
+  }
+
+  .book [id] {
+    scroll-margin-top: 32px;
+  }
 }
+
+@media (max-width: 639px) {
+  .option-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .option-heading data {
+    justify-self: start;
+  }
+
+  .docs-content {
+    padding: 28px 20px 64px;
+  }
+
+  .nav-brand {
+    padding: 10px 20px;
+  }
+
+  .docs-intro h1 {
+    font-size: 26px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.scroll-smooth {
     scroll-behavior: auto;
