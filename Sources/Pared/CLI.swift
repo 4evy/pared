@@ -7,15 +7,22 @@ private let usage = """
 
   \(Command.help)
 
-  Feature states: enabled, disabled, unmanaged. A missing policy defaults to disabled.
-  Local policy: ~/Library/Application Support/pared/policy.json
-  Enable/disable never delete models. Cleanup is explicit; install the profile to block model downloads.
-  Management artifacts need installation; enabled permits a feature, not provisioning.
-  --policy FILE selects an existing policy; --dry-run previews without writing.
-  Reset restores Apple defaults, not previous values; replace the profile too.
-  Profile status exits 0 when installed, 1 when absent; query failures are errors.
-  Models status is a downloaded snapshot, not live progress; errors exit 1.
-  Models download requires a catalog recovery mapping; callbacks mean acceptance.
+  Policy: ~/Library/Application Support/pared/policy.json
+  A new policy disables every feature. Use --policy FILE to read an existing policy.
+  Use --dry-run with supported commands to preview changes without writing.
+
+  enable/disable save settings; they do not remove or download models.
+  Install the generated profile in System Settings to enforce managed controls
+  and block downloads. Replace it after changing policy, including after reset.
+  reset removes local preferences; it does not restore their previous values.
+
+  models cleanup removes sets only when all known consumers are disabled.
+  models download requires an enabled feature with a catalog download mapping.
+  An accepted request does not mean the download has finished.
+  models status reports a snapshot, not live progress; query errors exit 1.
+
+  profile status reports installed metadata, not enforced settings.
+  It exits 0 when installed and 1 when absent; query failures are errors.
   """
 
 private struct Status: Encodable {

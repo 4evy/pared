@@ -37,10 +37,8 @@ func reportProfileInstallation() throws -> ExitStatus {
   let identifier = ProfileIdentity.identifier
   let uuid = ProfileIdentity.uuid
 
-  // MDMClientXPCMessageHandler_Public dispatches GetProfileList without
-  // private entitlements. Use the daemon for our System-scoped profile. This
-  // returns installed metadata, not downloaded profiles or enforced values
-  // Match identifiers: an older EUVlok profile shares our UUID, not our identity
+  // GetProfileList returns installed system profile metadata without private
+  // entitlements; it does not report pending profiles or effective settings
   let connection = NSXPCConnection(
     machServiceName: DeviceProfiles.service, options: .privileged)
   connection.remoteObjectInterface = NSXPCInterface(with: MDMProfileQuery.self)
@@ -67,6 +65,7 @@ func reportProfileInstallation() throws -> ExitStatus {
     throw CLIError("Device profile query timed out; installation status is unknown")
   }
   let profiles = try result.get()
+  // Match the identifier because an older EUVlok profile uses the same UUID
   let match = profiles.first { $0.identifier == identifier }
   let conflicts = profiles.filter {
     $0.identifier != identifier && $0.uuid.caseInsensitiveCompare(uuid) == .orderedSame

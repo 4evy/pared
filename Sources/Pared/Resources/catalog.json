@@ -20,7 +20,7 @@
       "assetSets": ["com.apple.modelcatalog"]
     },
     "siriVoiceTrigger": {
-      "description": "Siri voice trigger",
+      "description": "Activate Siri by voice",
       "preferences": [
         {
           "domain": "com.apple.Siri",
@@ -33,7 +33,7 @@
       "assetSets": []
     },
     "externalIntelligence": {
-      "description": "External AI integrations",
+      "description": "External AI integrations and account sign-in",
       "preferences": [],
       "restrictions": ["allowExternalIntelligenceIntegrations"],
       "declarations": ["external.Enabled", "external.AllowSignIn"],
@@ -92,14 +92,14 @@
       "assetSets": ["com.apple.modelcatalog"]
     },
     "mailSummaries": {
-      "description": "Mail manual summaries",
+      "description": "Summarize messages on request in Mail",
       "preferences": [],
       "restrictions": ["allowMailSummary"],
       "declarations": ["intelligence.Apps.Mail.AllowSummary"],
       "assetSets": ["com.apple.modelcatalog"]
     },
     "mailAutomaticSummaries": {
-      "description": "Mail automatic summaries",
+      "description": "Show automatic message summaries in Mail",
       "preferences": [
         {
           "domain": "group.com.apple.mail",
@@ -125,7 +125,7 @@
       "assetSets": ["com.apple.modelcatalog"]
     },
     "notesSummaries": {
-      "description": "Notes transcription summaries",
+      "description": "Summarize transcriptions in Notes",
       "preferences": [],
       "restrictions": ["allowNotesTranscriptionSummary"],
       "declarations": ["intelligence.Apps.Notes.AllowTranscriptionSummary"],
@@ -208,7 +208,7 @@
       ]
     },
     "calendarIntelligence": {
-      "description": "Calendar/Reminders natural-language editing (macOS 27+)",
+      "description": "Edit Calendar and Reminders using natural language (macOS 27+)",
       "preferences": [],
       "restrictions": [],
       "declarations": [
@@ -217,7 +217,7 @@
       "assetSets": ["com.apple.modelcatalog"]
     },
     "photosCleanup": {
-      "description": "Photos Clean Up model availability",
+      "description": "Models used by Photos Clean Up; does not change Photos settings",
       "preferences": [],
       "restrictions": [],
       "declarations": [],
@@ -231,7 +231,7 @@
       }
     },
     "codeIntelligence": {
-      "description": "Code language model availability",
+      "description": "Models used for code generation; does not change app settings",
       "preferences": [],
       "restrictions": [],
       "declarations": [],
@@ -256,7 +256,7 @@
       }
     },
     "foundationModels": {
-      "description": "Shared Foundation Model availability",
+      "description": "Shared foundation models; individual features have separate controls",
       "preferences": [],
       "restrictions": [],
       "declarations": [],

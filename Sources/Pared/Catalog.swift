@@ -58,7 +58,7 @@ struct Catalog: Decodable {
   let schemaVersion: Int
   let features: [String: Feature]
   let assetTypes: [String: String]
-  // Download-only dependencies must never become cleanup targets
+  // These dependencies may be downloaded but are excluded from cleanup
   let recoveryAssetTypes: [String: String]?
   let preferenceUUIDs: [String: String]
   let downloadBlocking: DownloadBlocking

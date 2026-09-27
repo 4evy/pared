@@ -30,8 +30,9 @@ func preferenceStatus(_ preference: Preference) -> PreferenceStatus {
 func validateDownloadPreferences(policy: Policy, catalog: Catalog, names: [String])
   throws
 {
-  // Downloads must respect effective managed settings. Saving desired policy
-  // must not use this check: that would prevent generating its replacement.
+  // Reject downloads that conflict with enforced preferences.
+  // Policy edits must still succeed so the user can generate a replacement
+  // profile that permits the download
   for name in names {
     guard policy.state(name) != .unmanaged else { continue }
     for preference in catalog.features[name]!.preferences {
@@ -51,9 +52,9 @@ func applyPreferences(policy: Policy, catalog: Catalog, names: [String], reset: 
     let state = policy.state(name)
     guard reset || state != .unmanaged else { continue }
     for preference in catalog.features[name]!.preferences {
-      // Save local intent even when an installed profile overrides it. Rejecting
-      // here would prevent generating the replacement profile needed to change
-      // that enforced value. Download validation remains strict.
+      // Write the requested local value even when the installed profile
+      // overrides it; the new value takes effect only after that override is
+      // removed
       if preferenceStatus(preference).forced {
         report("\(name) remains managed until the updated profile is installed")
       }

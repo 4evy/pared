@@ -36,9 +36,9 @@ func recoverModels(
       return feature.assetSets + (feature.recovery?.additionalAssetSets ?? [])
     }
   ).sorted()
-  // Enabling the CLI policy does not replace the installed system profile.
-  // Check the same managed plist the daemon reads before accepting a request
-  // that our download block would send to loopback.
+  // The installed profile can still block downloads after the CLI policy
+  // changes. Read the daemon's managed preferences and reject requests that
+  // Pared's download override would redirect to loopback
   let block = catalog.downloadBlocking
   let managedURL = URL(fileURLWithPath: "/Library/Managed Preferences/\(block.domain).plist")
   if FileManager.default.fileExists(atPath: managedURL.path) {
@@ -81,8 +81,8 @@ func recoverModels(
       }
     }
   }
-  // Construct every subscription before sending any request. Use Apple's secure
-  // coding objects and XPC interface instead of reproducing their wire format
+  // Construct all subscriptions first so an unavailable initializer cannot
+  // leave only some requests sent; Apple's objects provide the XPC encoding
   let subscriptions = try recoveries.map {
     recovery -> (subscriber: String, name: String, object: NSObject) in
     guard
@@ -95,9 +95,9 @@ func recoverModels(
     return (recovery.subscriber, recovery.name, subscription)
   }
   for (subscriber, entries) in Dictionary(grouping: subscriptions, by: \.subscriber) {
-    // ResetAssetSets can leave subscriptions intact. Repeating Subscribe then
-    // does nothing, so refresh only the named subscriptions in this catalog
-    // Failure between operations can leave the subscription absent
+    // ResetAssetSets can leave subscriptions intact, making Subscribe a no-op.
+    // Unsubscribe first to request a fresh download; if Subscribe then fails,
+    // these subscriptions remain absent
     let refresh = unsubscribeModelRequests(entries.map(\.name), subscriber: subscriber)
     guard refresh == .success else { return refresh }
     let result = modelOperation(

@@ -1,7 +1,7 @@
 import AssetBridge
 import Foundation
 
-// Keep speech, OCR, handwriting, and configuration/safety overrides excluded
+// Reject requests if Apple's current asset types differ from the catalog
 func validate(_ targets: [String], assetTypes: [String: String]) -> Bool {
   for name in targets {
     guard let actual = ParedAssetTypeForSet(name),
@@ -33,8 +33,8 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     return .unavailable
   }
   if !check {
-    // Stop only requests created by pared. Apple's and other apps' subscribers
-    // remain their responsibility; cleanup still depends on the feature policy
+    // Cancel Pared's subscriptions for the selected sets so they do not request
+    // the models again; leave subscriptions owned by Apple or other apps alone
     let selected = Set(targets)
     let requests = catalog.features.values.compactMap { feature -> String? in
       guard let recovery = feature.recovery, recovery.subscriber == UnifiedAssets.subscriber,
@@ -72,8 +72,8 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
 func modelOperation(
   _ operation: ModelOperation, completion handler: @escaping (NSError?, Reply<ExitStatus>) -> Void
 ) -> ExitStatus {
-  // Use Apple's interface to preserve its oneway Objective-C signature and
-  // allowed classes. A plain Swift protocol produces an incompatible wire signature
+  // Apple's interface supplies the oneway method signature and allowed object
+  // classes; a plain Swift protocol produces an incompatible XPC message
   guard
     let interface = UnifiedAssets.serviceInterface
   else {

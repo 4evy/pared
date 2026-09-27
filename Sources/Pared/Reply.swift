@@ -1,8 +1,8 @@
 import Foundation
 import os
 
-// The transport error handler and reply run on XPC queues. Accept only the
-// first result and synchronize access with the waiting main thread
+// The reply and transport error can arrive on different XPC queues.
+// Synchronize with the waiting thread and accept only the first result
 final class Reply<Value: Sendable>: Sendable {
   private let done = DispatchSemaphore(value: 0)
   private let result = OSAllocatedUnfairLock<Value?>(initialState: nil)

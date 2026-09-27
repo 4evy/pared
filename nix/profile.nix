@@ -27,7 +27,7 @@ lib.generators.toPlist { escape = true; } {
     )
   ]
   ++ lib.attrsets.mapAttrsToList (domain: preferences: {
-    # Each domain needs its own managed-preferences payload
+    # Group forced preferences by domain in separate profile payloads
     PayloadType = "com.apple.ManagedClient.preferences";
     PayloadVersion = 1;
     PayloadIdentifier = "org.pared.disable-apple-intelligence.preferences.${domain}";

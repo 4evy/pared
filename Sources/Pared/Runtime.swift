@@ -1,7 +1,7 @@
 import AssetBridge
 import Foundation
 
-// Process results shared by the CLI and asynchronous service replies
+// Use the same exit codes for immediate failures and asynchronous XPC replies
 enum ExitStatus: Int32 {
   case success = 0
   case failure = 1
@@ -31,8 +31,8 @@ enum UnifiedAssets {
   static var serviceInterface: NSXPCInterface? { ParedServiceInterface() }
 }
 
-// Keep required fields attached to their operation. Only the transport boundary
-// constructs Apple's heterogeneous dictionary; reset can never omit AssetSets
+// Require each operation's fields before building the XPC dictionary.
+// In particular, reset must include AssetSets: omitting it resets every set
 enum ModelOperation {
   case reset(assetSets: [String])
   case subscribe(subscriber: String, subscriptions: [NSObject])

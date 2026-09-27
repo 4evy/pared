@@ -21,7 +21,7 @@ let
     inherit feature;
     enabled = state name;
   }) managed;
-  # Preferences and declarations share nested domains/groups, so merge recursively
+  # Merge nested keys so one feature does not replace another in the same domain
   merge = lib.lists.foldl' lib.attrsets.recursiveUpdate { };
   userPreferences = merge (
     lib.lists.concatMap (

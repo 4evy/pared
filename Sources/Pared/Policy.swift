@@ -40,8 +40,8 @@ struct Policy: Codable {
     try jsonData(self).write(to: url, options: .atomic)
   }
 
-  // Preserve shared models whenever any known consumer is enabled or unmanaged
-  // This is a conservative policy map, not a complete Apple dependency graph
+  // Remove a shared model only when every consumer in the catalog is disabled.
+  // This protects known consumers; the catalog may omit Apple dependencies
   func cleanupTargets(_ catalog: Catalog) -> [String] {
     let consumers = Dictionary(
       grouping: catalog.features.flatMap { name, feature in

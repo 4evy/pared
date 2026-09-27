@@ -51,17 +51,19 @@ enum Command: String, CaseIterable {
   var definition: Definition {
     switch self {
     case .features:
-      return Definition(summary: "List stable feature names and available controls")
+      return Definition(
+        summary: "List feature names and their preference, profile, and model controls")
     case .status:
       return Definition(
         summary: "Show desired policy and observed preferences as JSON", features: .optional)
     case .enable:
       return Definition(
-        summary: "Enable preferences; save policy and management artifacts", features: .required,
+        summary: "Enable features; save policy, profile, and MDM declarations", features: .required,
         acceptsDryRun: true, desiredState: .enabled)
     case .disable:
       return Definition(
-        summary: "Disable preferences; save policy and management artifacts", features: .required,
+        summary: "Disable features; save policy, profile, and MDM declarations",
+        features: .required,
         acceptsDryRun: true, desiredState: .disabled)
     case .reset:
       return Definition(
@@ -69,13 +71,13 @@ enum Command: String, CaseIterable {
         acceptsDryRun: true, desiredState: .unmanaged)
     case .apply:
       return Definition(
-        summary: "Apply all managed preferences; save management artifacts", acceptsDryRun: true)
+        summary: "Apply policy preferences; save profile and MDM declarations", acceptsDryRun: true)
     case .profile:
-      return Definition(summary: "Print policy as a mobileconfig (does not install it)")
+      return Definition(summary: "Print the configuration profile without installing it")
     case .openProfile:
-      return Definition(summary: "Generate profile and open its macOS installation flow")
+      return Definition(summary: "Generate a profile and open System Settings for installation")
     case .profileStatus:
-      return Definition(summary: "Query installed device profile metadata without sudo")
+      return Definition(summary: "Show whether the Pared profile is installed, without sudo")
     case .declarations:
       return Definition(summary: "Print macOS 27 MDM configuration declarations")
     case .cleanup:
@@ -84,13 +86,13 @@ enum Command: String, CaseIterable {
         acceptsDryRun: true)
     case .download:
       return Definition(
-        summary: "Request model subscriptions for enabled features", features: .download,
+        summary: "Ask Apple to download models for enabled features", features: .download,
         acceptsDryRun: true)
     case .models:
       return Definition(
-        summary: "Query model downloads and local payload inventory as JSON", features: .optional)
+        summary: "Show model snapshots and local asset directories as JSON", features: .optional)
     case .check:
-      return Definition(summary: "Check private service access without selecting real assets")
+      return Definition(summary: "Check service access by requesting a nonexistent asset set")
     }
   }
 

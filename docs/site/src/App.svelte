@@ -36,7 +36,10 @@ const example = `{
     <section aria-labelledby="usage">
       <h2 id="usage" class="text-xl font-semibold">Quick start</h2>
       <p class="my-3">
-        Add Pared as a flake input, import one of its modules, and configure
+        Add Pared to your flake inputs. Pass <code>inputs</code> through
+        <code>specialArgs</code>
+        for nix-darwin or <code>extraSpecialArgs</code>
+        for Home Manager, then import the module and configure
         <code>programs.pared</code>:
       </p>
       <pre
@@ -49,16 +52,38 @@ const example = `{
         <code>true</code>
         enables a feature, <code>false</code> disables it, and
         <code>null</code>
-        leaves it unmanaged. Unspecified features inherit
-        <code>defaultState</code>. Unmanaged does not undo earlier preferences.
+        omits it from generated settings. Features you do not list inherit
+        <code>defaultState</code>, which defaults to <code>false</code>. This
+        example enables Writing Tools, leaves Spatial Photos unmanaged, and
+        disables all other features. Changing a setting to
+        <code>null</code>
+        does not remove preferences written earlier.
       </p>
       <p class="my-3">
-        Rebuild your nix-darwin or Home Manager configuration to apply changes.
-        For nix-darwin, set <code>system.primaryUser</code>. Generated profiles
-        still need installation through System Settings or MDM. The installed
-        profile blocks new model downloads for disabled features. Run
-        <code>pared models cleanup</code>
-        once to remove existing models; no cleanup job is scheduled.
+        Rebuild your configuration to apply the preferences and generate a
+        profile. For nix-darwin, set <code>system.primaryUser</code> for user
+        preferences. Install
+        <code>disable-apple-intelligence.mobileconfig</code>
+        through System Settings from <code>/etc/pared</code> (nix-darwin) or
+        <code>$XDG_CONFIG_HOME/pared</code>
+        (Home Manager, normally
+        <code>~/.config/pared</code>). Rebuilding does not install the profile.
+      </p>
+      <p class="my-3">
+        Both modules remove models during activation when all their known
+        consumers are disabled. A successful cleanup is recorded and runs again
+        only when the policy changes; a failed cleanup retries on the next
+        activation. Set
+        <code>programs.pared.cleanupOnActivation = false;</code> to opt out.
+        Install the profile to block future downloads of those models.
+      </p>
+      <p class="my-3">
+        CLI commands use a separate policy by default. To inspect the nix-darwin
+        policy, run
+        <code>pared status --policy /etc/pared/policy.json</code>. For Home
+        Manager, use the policy in its configuration directory. Change
+        Nix-managed settings in Nix and rebuild, then replace the installed
+        profile.
       </p>
     </section>
     <OptionsReference />

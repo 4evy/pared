@@ -8,9 +8,9 @@ func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: Man
         .boolean((policy.state(name) == .enabled) != preference.inverted)
     }
   }
-  // mobileassetd reads its managed preferences directly. Ordinary
-  // defaults are sandbox-denied. The same shared-consumer rule governs removal
-  // and blocking; enabled or unmanaged consumers must retain download access.
+  // mobileassetd can read managed preferences, but its sandbox denies ordinary
+  // defaults. Block the same sets selected for cleanup so an enabled or
+  // unmanaged consumer keeps access to its shared models
   let block = catalog.downloadBlocking
   for assetSet in policy.cleanupTargets(catalog) {
     let key = block.keyPrefix + catalog.assetTypes[assetSet]!
@@ -26,8 +26,8 @@ enum ProfileIdentity {
   static let payloadVersion = 1
 }
 
-// Property lists and declaration trees have dynamic catalog keys but a small,
-// known set of value types. Avoid allowing arbitrary objects into either format
+// Catalog keys vary, but profile and declaration values use only these types.
+// Keep arbitrary objects out of the serialized management settings
 indirect enum ManagementValue: Encodable {
   case string(String)
   case integer(Int)
@@ -66,7 +66,7 @@ func profileData(policy: Policy, catalog: Catalog) throws -> Data {
     for key in feature.restrictions { restrictions[key] = .boolean(policy.state(name) == .enabled) }
   }
   let values = preferenceValues(policy: policy, catalog: catalog)
-  // Each domain needs its own Forced payload
+  // Group forced preferences by domain in separate profile payloads
   let preferencePayloads: [ManagementValue] = values.sorted(by: { $0.key < $1.key }).map {
     domain, settings in
     var preferences = payload(
@@ -133,8 +133,9 @@ private struct ManagementDeclaration: Encodable {
 
 // Apple schemas: github.com/apple/device-management, release branch:
 // declarative/declarations/configurations/{intelligence,external-intelligence}.settings.yaml
-// Declarations require supervised MDM on 26.4+; Visual Intelligence and Calendar
-// require 27+. These are MDM configurations, not installable mobileconfigs
+// Send these configurations through supervised MDM; System Settings cannot
+// install them as profiles. The schemas require macOS 26.4 or later, with
+// Visual Intelligence and Calendar settings requiring macOS 27 or later
 func declarationData(policy: Policy, catalog: Catalog) throws -> Data {
   var groups: [String: ManagementValue] = [:]
   for (name, feature) in catalog.features where policy.state(name) != .unmanaged {

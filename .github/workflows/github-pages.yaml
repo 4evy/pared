@@ -60,8 +60,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      pages: write # Deploy the built site to GitHub Pages.
-      id-token: write # Authenticate the Pages deployment.
+      pages: write # Deploy the built site to GitHub Pages
+      id-token: write # Authenticate the Pages deployment
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

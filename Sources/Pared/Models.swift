@@ -12,7 +12,7 @@ struct LocalDownloadStatus: Codable {
   let latestDownloadedAtomicInstance: String?
   let downloadedAssets: [DownloadedAsset]
   let configuredAssetEntries: Int
-  // Apple's selector contains this spelling
+  // Preserve Apple's misspelled selector name in the bridge's JSON output
   let latestDowloadedAtomicInstanceEntries: Int
   let downloadedNetworkBytes: Int64
   let downloadedFilesystemBytes: Int64
@@ -28,8 +28,8 @@ struct ModelStatus: Encodable {
   let inventoryError: String?
 }
 
-// A failed service query does not establish that a model is absent
-// Keep the error-bearing primitive: UAF's convenience status method discards it
+// Retain query errors so callers can distinguish unknown status from absence.
+// UAF's convenience status method discards the underlying error
 func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] {
   guard
     dlopen(
@@ -59,8 +59,9 @@ func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] 
     var payloads: [String]?
     var inventoryError: String?
     do {
-      // Assets can be nested under purpose_auto. Stop at each asset container;
-      // its private payload may be unreadable even when inventory is permitted
+      // Search nested directories such as purpose_auto, but stop at asset
+      // containers. Their contents may be unreadable even when the directory can
+      // be listed
       _ = try FileManager.default.contentsOfDirectory(atPath: directory.path)
       var enumerationError: Error?
       guard

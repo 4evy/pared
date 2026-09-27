@@ -2,8 +2,8 @@ import AppKit
 import Foundation
 
 func openProfileInstallation(policy: Policy, catalog: Catalog) throws {
-  // Stage outside the input policy directory: --policy may point into /nix/store
-  // Keep the file available while System Settings reviews it asynchronously
+  // Stage a writable copy because --policy may point into /nix/store.
+  // Keep it on disk until System Settings has had time to read it
   let directory = Policy.defaultURL.deletingLastPathComponent()
     .appendingPathComponent("installation", isDirectory: true)
   try FileManager.default.createDirectory(

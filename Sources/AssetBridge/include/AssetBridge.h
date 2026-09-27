@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
-// Use Objective-C's native initializer ABI and ARC for this private object
+// Construct the private object with Objective-C initializer and ARC semantics
 FOUNDATION_EXPORT NSObject *_Nullable ParedSubscription(
     NSString *name,
     NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *>
@@ -10,7 +10,7 @@ FOUNDATION_EXPORT NSObject *_Nullable ParedSubscription(
 FOUNDATION_EXPORT
 NSDictionary<NSString *, id> *_Nullable ParedLocalStatus(NSString *assetSet,
                                                          NSError **error);
-// Objective-C encoding: Vv32@0:8@16@?24 (oneway void, dictionary, block).
+// Preserve the oneway signature: Vv32@0:8@16@?24 (void, dictionary, block)
 FOUNDATION_EXPORT void
 ParedPerformOperation(NSObject *proxy,
                       NSDictionary<NSString *, id> *configuration,

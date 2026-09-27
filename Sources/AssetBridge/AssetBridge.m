@@ -40,9 +40,9 @@ NSObject *ParedSubscription(NSString *name, NSDictionary *assetSetUsages,
                        usageAliases:usageAliases];
 }
 
-// Snapshot bytes are not reclaimed APFS space or live download progress. After
-// cleanup, NoSharedLock 6582 can mean the latest-instance lock is gone, not
-// zero assets
+// These byte counts describe a downloaded snapshot, not live progress or freed
+// APFS space. After cleanup, NoSharedLock 6582 can indicate a missing instance
+// lock, so propagate the error rather than reporting zero assets
 NSDictionary *ParedLocalStatus(NSString *assetSet, NSError **error) {
   Class type = NSClassFromString(@"UAFAutoAssetManager");
   if (![type respondsToSelector:@selector(latestStatusForClients:error:)]) {
@@ -59,8 +59,8 @@ NSDictionary *ParedLocalStatus(NSString *assetSet, NSError **error) {
   NSObject *status = [type latestStatusForClients:assetSet error:error];
   if (!status)
     return nil;
-  // MAAutoAssetSetStatus properties: NSString, NSArray, NSArray, q, q, B.
-  // Keep Apple's misspelling of latestDowloadedAtomicInstanceEntries.
+  // Require the selectors used below before reading a private status object.
+  // latestDowloadedAtomicInstanceEntries preserves Apple's misspelling
   SEL required[] = {@selector(latestDownloadedAtomicInstance),
                     @selector(configuredAssetEntries),
                     @selector(latestDowloadedAtomicInstanceEntries),
