@@ -1,7 +1,7 @@
 {
   description = "pared: Apple Intelligence controls and model cleanup for macOS";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs =
     inputs:

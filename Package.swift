@@ -1,8 +1,8 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.2
 import PackageDescription
 
-#if !compiler(>=5.10.1)
-  #error("pared requires Swift 5.10.1 or newer. Build with nix build or enter nix develop.")
+#if !compiler(>=6.2.4)
+  #error("pared requires Swift 6.2.4 or newer. Build with nix build or enter nix develop.")
 #endif
 
 let package = Package(

@@ -6,8 +6,8 @@
   python3,
 }:
 assert lib.asserts.assertMsg (
-  swift.version == "5.10.1" && swiftpm.version == "5.10.1"
-) "pared requires Swift and SwiftPM 5.10.1; use the project's pinned Nixpkgs.";
+  lib.versionAtLeast swift.version "6.2.4" && lib.versionAtLeast swiftpm.version "6.2.4"
+) "pared requires Swift and SwiftPM 6.2.4 or newer.";
 stdenv.mkDerivation {
   pname = "pared";
   version = "1.0.0";

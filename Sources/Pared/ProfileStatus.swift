@@ -22,7 +22,7 @@ private struct InstalledProfile: Sendable {
 private enum DeviceProfiles {
   static let service = "com.apple.mdmclient.daemon.unrestricted"
   static let timeout: TimeInterval = 10
-  static let listRequest: NSDictionary = ["Command": "GetProfileList"]
+  static let listRequest = ["Command": "GetProfileList"]
 }
 
 private struct ProfileInstallationStatus: Encodable {
@@ -50,7 +50,7 @@ func reportProfileInstallation() throws -> ExitStatus {
       reply.finish(.failure(error))
     }) as? MDMProfileQuery
   else { throw CLIError("Cannot create the device profile query proxy") }
-  proxy.publicRequest(DeviceProfiles.listRequest) { response in
+  proxy.publicRequest(DeviceProfiles.listRequest as NSDictionary) { response in
     guard (response["__Success__"] as? NSNumber)?.boolValue == true,
       let body = response["Response"] as? [String: Any],
       let profiles = body["ProfileList"] as? [[String: Any]]
