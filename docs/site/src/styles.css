@@ -4,30 +4,38 @@
 
 a,
 button,
-input {
-  @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#f6cf5e];
+input,
+summary {
+  @apply focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)];
 }
 
 :root {
   color-scheme: light;
-  --page: #fff;
-  --panel: #f7f8fa;
-  --ink: #24292f;
-  --muted: #626b76;
-  --line: #e1e4e8;
-  --accent: #245eaa;
-  --selected: #eaf1fb;
+  --page: #fcfafc;
+  --panel: #f3f0f5;
+  --ink: #26222a;
+  --muted: #6b6470;
+  --line: #ddd6e1;
+  --accent: #b22161;
+  --selected: #f5e5ed;
+  --mat: #ece5ef;
+  --mat-line: #c1b3c9;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --serif:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
 
 :root.dark {
   color-scheme: dark;
-  --page: #12171d;
-  --panel: #171d24;
-  --ink: #e1e6ed;
-  --muted: #9ca8b5;
-  --line: #2b333d;
-  --accent: #8ccff0;
-  --selected: #202e3b;
+  --page: #19161c;
+  --panel: #242029;
+  --ink: #f6f0f7;
+  --muted: #bdb3c4;
+  --line: #413848;
+  --accent: #f2a2c3;
+  --selected: #3a2432;
+  --mat: #2d2533;
+  --mat-line: #68536f;
 }
 
 body {
@@ -72,18 +80,27 @@ body {
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 9px;
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.4px;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -1.4px;
 }
 
-.brand span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0;
+.nav-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  margin: 0 20px 12px;
+  padding: 4px 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.nav-home:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .section-navigation {
@@ -102,8 +119,9 @@ body {
 .nav-link {
   display: flex;
   align-items: center;
-  border-radius: 5px;
-  padding: 8px 10px;
+  border-radius: 0;
+  border-left: 2px solid transparent;
+  padding: 9px 10px;
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
@@ -116,6 +134,7 @@ body {
 
 .nav-link.active {
   color: var(--accent);
+  border-left-color: var(--accent);
   background: var(--selected);
   font-weight: 600;
 }
@@ -137,12 +156,34 @@ body {
   border-bottom: 1px solid var(--line);
 }
 
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+.icon-button:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
 .docs-intro h1 {
   margin: 0 0 14px;
-  font-size: 30px;
-  font-weight: 650;
-  letter-spacing: -0.8px;
-  line-height: 1.25;
+  font-size: clamp(40px, 4.5vw, 64px);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
 }
 
 .intro-description {
@@ -187,25 +228,25 @@ body {
 }
 
 .book > .section {
-  margin-top: 24px;
-  padding-top: 0;
-  border: 0;
+  margin-top: 56px;
+  padding-top: 40px;
+  border-top: 1px solid var(--line);
 }
 
 .guide-section h2 {
   margin: 0 0 16px;
   color: var(--ink);
-  font-size: 24px;
-  font-weight: 650;
-  letter-spacing: -0.5px;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
 }
 
 .book > .section .titlepage h2 {
   margin: 0 0 16px;
   color: var(--ink);
-  font-size: 24px;
-  font-weight: 650;
-  letter-spacing: -0.5px;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
 }
 
 .book > .section .titlepage hgroup {
@@ -247,7 +288,7 @@ body {
   width: 100%;
   height: 44px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 3px;
   padding: 0 44px;
   background: var(--page);
   color: var(--ink);
@@ -302,9 +343,15 @@ body {
 
 .guide-section {
   max-width: 72ch;
-  margin-top: 44px;
-  padding-top: 28px;
+  margin-top: 56px;
+  padding-top: 40px;
   border-top: 1px solid var(--line);
+}
+
+.docs-intro + .guide-section {
+  margin-top: 32px;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .guide-section pre {
@@ -403,7 +450,7 @@ input[type="search"]::-webkit-search-cancel-button {
   }
 
   .docs-intro h1 {
-    font-size: 26px;
+    font-size: 38px;
   }
 }
 
@@ -411,4 +458,362 @@ input[type="search"]::-webkit-search-cancel-button {
   html.scroll-smooth {
     scroll-behavior: auto;
   }
+}
+
+.guide-subheading {
+  margin: 28px 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.guide-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.guide-code {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 16px;
+  background: var(--panel);
+}
+
+.docs-intro h1 em {
+  color: var(--accent);
+}
+
+.docs-content .eyebrow {
+  margin-bottom: 16px;
+  font-size: 10px;
+}
+
+.docs-intro .intro-description {
+  margin-top: 24px;
+  max-width: 52ch;
+}
+
+.nav-label {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.guide-section pre {
+  margin-block: 18px;
+}
+
+.guide-code {
+  line-height: 1.65;
+}
+
+.install-commands {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.command-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px 0;
+}
+
+.install-methods {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 8px;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.install-methods button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 78px;
+  padding: 14px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+}
+
+.install-methods button svg {
+  flex-shrink: 0;
+}
+
+.install-methods small {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.install-methods button:hover {
+  background: var(--page);
+  color: var(--ink);
+}
+
+.install-methods button.chosen {
+  background: var(--page);
+  border-color: var(--line);
+  color: var(--accent);
+}
+
+.install-method-content {
+  min-height: 216px;
+}
+
+.command-language {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.app-install-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px 24px;
+}
+
+.app-install-content h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 550;
+}
+
+.app-install-content p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.app-install-content .button {
+  flex-shrink: 0;
+}
+
+.nix-module-link {
+  display: inline-block;
+  margin: 0 20px 22px;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.docs-content .install-methods {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.docs-content .app-install-content {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+@media (max-width: 767px) {
+  .install-methods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .install-methods button {
+    gap: 10px;
+    min-height: 72px;
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .app-install-content {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.copy-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.copy-command:hover {
+  background: var(--selected);
+}
+
+.install-commands .install-code {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  margin: 0;
+  padding: 24px 20px 18px;
+  color: var(--ink);
+  font: 12px / 1.8 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+  cursor: copy;
+  user-select: none;
+}
+
+.install-commands .install-code:hover {
+  color: var(--accent);
+}
+
+.install-commands .install-code.copy-failed {
+  user-select: text;
+}
+
+.command-note {
+  margin: 0;
+  padding: 0 20px 22px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.copy-status {
+  margin: 0;
+  padding-inline: 20px;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.copy-status:not(:empty) {
+  padding-bottom: 16px;
+}
+
+.install-commands.compact .install-methods {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 6px;
+  gap: 4px;
+}
+
+.install-commands.compact .install-methods button {
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  min-height: 64px;
+  padding: 8px 2px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.install-commands.compact .install-methods small {
+  display: none;
+}
+
+.install-commands.compact .install-method-content {
+  min-height: 120px;
+}
+
+.install-commands.compact .app-install-content {
+  flex-direction: column-reverse;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.install-commands.compact .app-install-content .button {
+  width: 100%;
+}
+
+.install-commands.compact .app-install-content p {
+  font-size: 11px;
+}
+
+.install-commands.compact .command-toolbar {
+  padding: 12px 16px 0;
+}
+
+.install-commands.compact .install-code {
+  padding: 12px 16px;
+  font-size: 11px;
+}
+
+.install-commands.compact .command-note {
+  padding: 0 16px 16px;
+  font-size: 11px;
+}
+
+.docs-shell .option-definition {
+  margin-top: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.docs-shell .option-definition:target {
+  background: var(--selected);
+}
+
+.docs-shell .option-heading {
+  padding: 18px 4px;
+  border-color: var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.docs-shell .option-heading:hover {
+  background: var(--panel);
+}
+
+.docs-shell .option-heading code,
+.docs-shell .option-heading > span > span:first-child,
+.docs-shell .option-details a {
+  color: var(--accent);
+}
+
+.docs-shell .option-heading data {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.docs-shell .option-summary-description,
+.docs-shell .option-field dt {
+  color: var(--muted);
+}
+
+.docs-shell .option-fields,
+.docs-shell .option-field {
+  border-color: var(--line);
+}
+
+.docs-shell .option-details {
+  padding-inline: 22px;
+}
+
+.docs-shell .option-details code {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.release-note a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

@@ -10,8 +10,12 @@ export function stringifyDocValue(value: unknown): string {
     return value.text;
   return JSON.stringify(value, null, 2);
 }
-export async function loadOptions(): Promise<OptionEntry[]> {
-  const response = await fetch(`${import.meta.env.BASE_URL}options.json`);
+export async function loadOptions(
+  signal?: AbortSignal,
+): Promise<OptionEntry[]> {
+  const response = await fetch(`${import.meta.env.BASE_URL}options.json`, {
+    signal,
+  });
   if (!response.ok)
     throw new Error(`Could not load options.json (${response.status})`);
   const raw = (await response.json()) as Record<string, RawOption>;

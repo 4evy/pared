@@ -1,7 +1,7 @@
-import tailwindcss from '@tailwindcss/vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 function resolveRevision() {
@@ -26,4 +26,14 @@ export default defineConfig(({ command, isPreview }) => ({
     __PARED_REVISION__: JSON.stringify(resolveRevision()),
   },
   plugins: [svelte(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      input: {
+        home: fileURLToPath(new URL('./docs/site/index.html', import.meta.url)),
+        docs: fileURLToPath(
+          new URL('./docs/site/docs/index.html', import.meta.url),
+        ),
+      },
+    },
+  },
 }));

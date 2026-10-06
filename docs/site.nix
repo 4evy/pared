@@ -14,6 +14,7 @@ buildNpmPackage {
       ../package.json
       ../package-lock.json
       ./site/index.html
+      ./site/docs
       ../tsconfig.json
       ../vite.config.ts
       ./site/src
@@ -22,7 +23,7 @@ buildNpmPackage {
     ];
   };
   nodejs = nodejs_24;
-  npmDepsHash = "sha256-7EYRSEsmgZJe4FpE98DSc4yZRT0xmEJIkdoe+aowhP8=";
+  npmDepsHash = "sha256-1RNQtlRcPGLMyT7sfk5GNhUrIf2ee2INcguY5cKQ5FM=";
   env.PARED_REVISION = revision;
   env.PARED_OPTIONS_JSON = "${optionsJSON}/share/doc/nixos/options.json";
   preBuild = "npm run check";

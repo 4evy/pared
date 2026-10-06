@@ -1,5 +1,5 @@
 export const focusClass =
-  'focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#f6cf5e]';
+  'focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)]';
 
 export const linkClass = `text-[#0a3e68] underline underline-offset-2 decoration-[1px] hover:text-[#268598] dark:text-[#8ccff0] dark:hover:text-[#bde8fa] ${focusClass}`;
 

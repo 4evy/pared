@@ -1,4 +1,5 @@
 <script lang="ts">
+import ChevronRight from '@lucide/svelte/icons/chevron-right';
 import {
   filenameCodeClass,
   focusClass,
@@ -53,7 +54,7 @@ const headingTag = $derived(headingLevel === 4 ? 'h4' : 'h5');
         <span
           class={`mt-0.5 shrink-0 text-[1.05rem] leading-none text-[#0a3e68] transition-transform dark:text-[#8ccff0] ${open ? 'rotate-90' : ''}`}
           aria-hidden="true"
-          >›</span
+          ><ChevronRight size={16} /></span
         >
         <span class="min-w-0">
           <svelte:element

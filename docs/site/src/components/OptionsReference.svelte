@@ -1,14 +1,16 @@
 <script lang="ts">
-import { onMount, tick } from 'svelte';
+import { resource, useEventListener, watch } from 'runed';
+import { tick } from 'svelte';
 import { focusClass, topSectionClass } from '../classes';
 import { loadOptions } from '../options';
-import type { OptionEntry } from '../types';
 import OptionDefinition from './OptionDefinition.svelte';
 import TitlePage from './TitlePage.svelte';
 
-let options = $state<OptionEntry[]>([]);
-let error = $state('');
-let loading = $state(true);
+const optionsResource = resource(
+  () => true,
+  (_, __, { signal }) => loadOptions(signal),
+);
+const options = $derived(optionsResource.current ?? []);
 let query = $state(new URLSearchParams(window.location.search).get('q') ?? '');
 let opened = $state<Record<string, boolean>>({});
 const matches = $derived(
@@ -37,43 +39,39 @@ async function revealHash() {
   await tick();
   document.getElementById(`opt-${name}`)?.scrollIntoView();
 }
-async function load() {
-  loading = true;
-  error = '';
-  try {
-    options = await loadOptions();
-    await revealHash();
-  } catch (cause) {
-    error = cause instanceof Error ? cause.message : String(cause);
-  } finally {
-    loading = false;
-    await tick();
-    await revealHash();
-  }
-}
-onMount(() => {
-  void load();
-  const onHash = () => void revealHash();
-  const onPop = () => {
+watch(
+  () => optionsResource.loading,
+  (loading) => {
+    if (!loading && !optionsResource.error) void revealHash();
+  },
+);
+useEventListener(
+  () => window,
+  'hashchange',
+  () => void revealHash(),
+);
+useEventListener(
+  () => window,
+  'popstate',
+  () => {
     query = new URLSearchParams(window.location.search).get('q') ?? '';
     void revealHash();
-  };
-  window.addEventListener('hashchange', onHash);
-  window.addEventListener('popstate', onPop);
-  return () => {
-    window.removeEventListener('hashchange', onHash);
-    window.removeEventListener('popstate', onPop);
-  };
-});
+  },
+);
 </script>
 <section class={topSectionClass} aria-labelledby="sec-options">
-  <TitlePage id="sec-options" title="Option reference" level={2} />
-  {#if error}
-    <p role="alert">{error}</p>
-    <button type="button" class={focusClass} onclick={() => void load()}>
+  <p class="eyebrow">06 / Reference</p>
+  <TitlePage id="sec-options" title="Nix option reference" level={2} />
+  {#if optionsResource.error}
+    <p role="alert">{optionsResource.error.message}</p>
+    <button
+      type="button"
+      class={focusClass}
+      onclick={() => void optionsResource.refetch()}
+    >
       Retry
     </button>
-  {:else if loading}
+  {:else if optionsResource.loading}
     <p role="status">Loading configuration options…</p>
   {:else}
     <search class="options-toolbar" aria-label="Configuration options">

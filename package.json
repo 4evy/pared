@@ -10,9 +10,12 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@lucide/svelte": "1.52.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "mode-watcher": "^1.1.0",
+    "runed": "^0.37.1",
+    "simple-icons": "16.34.0",
     "svelte": "^5.57.1",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.0"
