@@ -121,6 +121,8 @@ struct Catalog: Decodable {
 
   var featureNames: [String] { features.keys.sorted() }
 
+  var presentations: [FeaturePresentation] { featureNames.map(presentation) }
+
   func modelAssets(_ names: [String], includingDownloadDependencies: Bool = false)
     throws(CLIError) -> [ModelAssetSet]
   {
@@ -152,6 +154,10 @@ struct Catalog: Decodable {
 
   func consumers(of assetSet: String) -> [String] {
     features.filter { $0.value.assetSets.contains(assetSet) }.keys.sorted()
+  }
+
+  func presentation(_ name: String) -> FeaturePresentation {
+    FeaturePresentation(name, feature: features[name])
   }
 
   func modelTitle(_ assetSet: String, wizard: Bool = false) -> String {
@@ -201,3 +207,20 @@ func report(_ message: String) {
   FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
+struct FeaturePresentation: Identifiable {
+  let id: String
+  let title: String
+  let symbol: String
+  let group: FeatureGroup
+  let wizardTitle: String
+  let downloadPurpose: String
+
+  init(_ name: String, feature: Feature? = nil) {
+    id = name
+    title = feature?.display?.title ?? feature?.description ?? name
+    symbol = feature?.display?.symbol ?? "slider.horizontal.3"
+    group = feature?.display?.group ?? .system
+    wizardTitle = feature?.display?.wizardTitle ?? feature?.description ?? name
+    downloadPurpose = feature?.display?.downloadPurpose ?? "Models used by this feature"
+  }
+}

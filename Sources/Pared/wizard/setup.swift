@@ -1,13 +1,14 @@
 import Foundation
+import Subprocess
 
-/// Installs the running release without changing policy or feature settings
+/// Installs the standalone CLI without changing policy or feature settings
 enum WizardInstallation {
   private static let executableName = "pared"
   private static let bundleName = "pared_Pared.bundle"
   private static let markerName = ".pared-installer"
   private static let ownedNames: Set<String> = [executableName, bundleName, markerName]
 
-  static func install(prefix: URL) throws -> URL {
+  static func install(prefix: URL) async throws -> URL {
     let files = FileManager.default
     let prefix = prefix.standardizedFileURL
     let binDirectory = prefix.appendingPathComponent("bin", isDirectory: true)
@@ -22,12 +23,16 @@ enum WizardInstallation {
       guard let runningExecutable = Bundle.main.executableURL else {
         throw CLIError("Could not locate the running Pared executable")
       }
-      let sourceExecutable = runningExecutable.resolvingSymlinksInPath()
+      // App executables depend on Sparkle; install their bundled standalone CLI
+      let sourceExecutable =
+        (Bundle.main.bundleURL.pathExtension == "app"
+        ? Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/pared")
+        : runningExecutable).resolvingSymlinksInPath()
       let sourceBundle = Bundle.module.bundleURL.resolvingSymlinksInPath()
       guard try itemType(sourceExecutable) == .typeRegular,
         files.isExecutableFile(atPath: sourceExecutable.path)
       else {
-        throw CLIError("The running executable is not a readable release: \(sourceExecutable.path)")
+        throw CLIError("The standalone CLI is missing or not executable: \(sourceExecutable.path)")
       }
       guard try itemType(sourceBundle) == .typeDirectory else {
         throw CLIError("The Pared resource bundle is missing: \(sourceBundle.path)")
@@ -49,9 +54,10 @@ enum WizardInstallation {
       try files.copyItem(at: sourceExecutable, to: payload.appendingPathComponent(executableName))
       try files.copyItem(at: sourceBundle, to: payload.appendingPathComponent(bundleName))
       try Data().write(to: payload.appendingPathComponent(markerName), options: .withoutOverwriting)
-      try verifyPayload(payload)
+      try await verifyPayload(payload)
 
-      // Keep user-added files, including any policy stored beside the executable
+      // Keep user-added files, including any policy stored beside the
+      // executable
       if try itemType(destination) != nil {
         for item in try files.contentsOfDirectory(
           at: destination, includingPropertiesForKeys: nil)
@@ -211,27 +217,20 @@ enum WizardInstallation {
     }
   }
 
-  private static func verifyPayload(_ payload: URL) throws {
+  private static func verifyPayload(_ payload: URL) async throws {
     let bundleURL = payload.appendingPathComponent(bundleName, isDirectory: true)
     guard let bundle = Bundle(url: bundleURL),
       let catalog = bundle.url(forResource: "catalog", withExtension: "json"),
       FileManager.default.isReadableFile(atPath: catalog.path)
     else { throw CLIError("The staged release is missing its readable feature catalog") }
-    let process = Process()
-    process.executableURL = payload.appendingPathComponent(executableName)
-    process.arguments = ["features"]
-    process.currentDirectoryURL = payload
-    process.standardOutput = FileHandle.nullDevice
-    let errors = Pipe()
-    process.standardError = errors
-    try process.run()
-    let diagnostics = errors.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-    guard process.terminationReason == .exit, process.terminationStatus == 0 else {
-      let detail = String(decoding: diagnostics, as: UTF8.self).trimmingCharacters(
-        in: .whitespacesAndNewlines)
+    let result = try await Subprocess.run(
+      .path(.init(payload.appendingPathComponent(executableName).path)),
+      arguments: ["features"], workingDirectory: .init(payload.path),
+      output: .discarded, error: .string(limit: .max))
+    guard result.terminationStatus.isSuccess else {
+      let detail = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
       throw CLIError(
-        "The staged Pared release could not load its resources and run features (status \(process.terminationStatus))."
+        "The staged Pared release could not load its resources and run features (\(result.terminationStatus))."
           + (detail.isEmpty ? "" : " \(detail)"))
     }
   }

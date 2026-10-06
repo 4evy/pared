@@ -13,7 +13,7 @@ struct FeaturesPane: View {
         HStack {
           Picker("Show", selection: $store.featureFilter) {
             ForEach(GUIFeatureFilter.allCases) { filter in
-              Text(filter.rawValue).tag(filter)
+              Text(filter.title).tag(filter)
             }
           }
           .pickerStyle(.menu).labelsHidden()
@@ -25,20 +25,21 @@ struct FeaturesPane: View {
         .padding(12)
         Divider()
         List(selection: $store.selectedFeature) {
-          ForEach(FeaturePresentation.groups, id: \.self) { group in
-            let members = filtered.filter { $0.group == group }
-            if !members.isEmpty {
-              Section(group) {
+          let groups = Dictionary(grouping: filtered, by: \.group)
+          ForEach(FeatureGroup.allCases, id: \.self) { group in
+            if let members = groups[group] {
+              Section(group.rawValue) {
                 ForEach(members) { feature in
                   HStack(spacing: 10) {
                     Image(systemName: feature.symbol).frame(width: 20).foregroundStyle(.secondary)
                       .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                      Text(feature.title).lineLimit(1).help(feature.title)
-                      Text(store.draft.state(feature.id).title).font(.caption).foregroundStyle(
-                        .secondary)
-                    }
-                    Spacer(minLength: 0)
+                    Text(feature.title).lineLimit(2).help(feature.title)
+                    Spacer(minLength: 4)
+                    Text(store.draft.state(feature.id).title)
+                      .font(.caption).foregroundStyle(.secondary)
+                      .padding(.horizontal, 7).padding(.vertical, 3)
+                      .background(.quaternary, in: Capsule())
+                      .fixedSize()
                     if store.draft.state(feature.id) != store.policy.state(feature.id) {
                       Image(systemName: "pencil").font(.caption)
                         .accessibilityLabel("Unsaved change")
@@ -71,19 +72,19 @@ struct FeaturesPane: View {
         }
         Divider()
         HStack {
-          Menu("Set All") {
-            Button("Enable All") { store.setAll(.enabled) }
-            Button("Disable All") { store.setAll(.disabled) }
-            Button("Leave All Unmanaged") { store.setAll(.unmanaged) }
+          Menu("Set All Features") {
+            ForEach(FeatureState.allCases, id: \.self) { state in
+              Button(state.bulkActionTitle) { store.setAll(state) }
+            }
           }
-          .disabled(store.busy || store.readOnly || !store.loaded)
+          .disabled(!store.canEditChoices)
           Spacer()
           Button("Discard Changes", action: store.discardChanges)
             .disabled(store.working || !store.hasChanges)
         }
         .padding(12)
       }
-      .frame(minWidth: 235, idealWidth: 275, maxWidth: 340)
+      .frame(minWidth: 270, idealWidth: 300, maxWidth: 380)
 
       if let name = store.selectedFeature, let feature = store.catalog?.features[name] {
         FeatureDetail(store: store, name: name, feature: feature)
@@ -104,16 +105,20 @@ private struct FeatureDetail: View {
   let name: String
   let feature: Feature
 
-  private var presentation: FeaturePresentation { FeaturePresentation(name) }
-  private var status: GUIFeatureStatus? { store.featureStatuses[name] }
+  private var presentation: FeaturePresentation { store.presentation(name) }
+  private var status: FeatureStatus? { store.featureStatuses[name] }
+  private var requiresDeviceManagement: Bool {
+    !feature.declarations.isEmpty && feature.restrictions.isEmpty && feature.preferences.isEmpty
+  }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         PageHeading(
-          title: presentation.title, description: feature.description,
+          title: presentation.title,
+          description: feature.description == presentation.title ? "" : feature.description,
           symbol: presentation.symbol)
-        GroupBox("Your Policy") {
+        GroupBox("Your choice") {
           VStack(alignment: .leading, spacing: 12) {
             Picker(
               "Feature state",
@@ -122,16 +127,19 @@ private struct FeatureDetail: View {
                 set: { store.draft.features[name] = $0 }
               )
             ) {
-              Text("Enabled").tag(FeatureState.enabled)
-              Text("Disabled").tag(FeatureState.disabled)
-              Text("Unmanaged").tag(FeatureState.unmanaged)
+              ForEach(FeatureState.allCases, id: \.self) { state in
+                Text(state.title).tag(state)
+              }
             }
             .pickerStyle(.segmented).labelsHidden()
-            .accessibilityLabel("Policy for \(presentation.title)")
-            .disabled(store.busy || store.readOnly || !store.loaded)
-            Text(stateDescription).font(.callout).foregroundStyle(.secondary)
+            .accessibilityLabel("Your choice for \(presentation.title)")
+            .disabled(!store.canEditChoices)
+            Text(store.draft.state(name).detail).font(.callout).foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
-            if store.draft.state(name) != store.policy.state(name) {
+            if !store.policyExists {
+              Text("Draft choice · save to apply")
+                .font(.caption).foregroundStyle(.secondary)
+            } else if store.draft.state(name) != store.policy.state(name) {
               Label(
                 "Unsaved · currently \(store.policy.state(name).title.lowercased()) in your policy",
                 systemImage: "pencil"
@@ -141,46 +149,49 @@ private struct FeatureDetail: View {
           }
           .padding(8).frame(maxWidth: .infinity, alignment: .leading)
         }
-        if feature.preferences.isEmpty && feature.restrictions.isEmpty
-          && feature.declarations.isEmpty
-        {
+        if feature.modelAvailabilityOnly {
           InlineMessage(
             title: "Model availability only",
             message:
               "This choice controls whether Pared retains these models. It does not change the feature’s settings in its Apple app.",
             symbol: "cube")
-        } else if !feature.restrictions.isEmpty || !feature.declarations.isEmpty
-          || !feature.assetSets.isEmpty
-        {
-          InlineMessage(
-            title: "Profile required",
-            message:
-              "Save your choices, then install the updated profile. Your saved policy alone does not prove macOS is enforcing it.",
-            symbol: "doc.badge.gearshape")
+        } else if feature.managementRequired {
+          VStack(alignment: .leading, spacing: 8) {
+            Label(
+              requiresDeviceManagement ? "Requires device management" : "Applies through a profile",
+              systemImage: "doc.badge.gearshape"
+            )
+            .font(.callout.weight(.medium))
+            Text(
+              requiresDeviceManagement
+                ? "Pared’s profile controls model downloads. Restricting the feature itself requires supervised device management."
+                : "Save your choice, then install the updated profile in System Settings. Installed status does not confirm these controls are enforced."
+            )
+            .font(.callout).foregroundStyle(.secondary)
+            Button("Review Setup") { store.section = .profile }
+              .buttonStyle(.link)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
-        if !feature.declarations.isEmpty && feature.restrictions.isEmpty
-          && feature.preferences.isEmpty
-        {
-          Text(
-            "The feature restriction is available through MDM declarations. Installing a profile here only manages its model downloads."
-          )
-          .font(.callout).foregroundStyle(.secondary)
+        if let note = feature.display?.note {
+          Text(note).font(.callout).foregroundStyle(.secondary)
         }
         if !feature.preferences.isEmpty {
-          GroupBox("Observed Preferences") {
+          GroupBox("Current Settings") {
             VStack(alignment: .leading, spacing: 12) {
               if let error = store.statusError {
                 Text(error).foregroundStyle(.secondary).textSelection(.enabled)
               } else if let status {
-                ForEach(Array(status.preferences.enumerated()), id: \.offset) { _, preference in
+                ForEach(status.preferences) { preference in
                   VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline) {
-                      Text(FeaturePresentation.preferenceTitle(preference.key)).fontWeight(.medium)
+                      let definition = feature.preferences.first {
+                        $0.id == preference.id
+                      }
+                      Text(definition?.title ?? preference.key).fontWeight(.medium)
                       Spacer()
                       let inverted =
-                        feature.preferences.first {
-                          $0.domain == preference.domain && $0.key == preference.key
-                        }?.inverted ?? false
+                        definition?.inverted ?? false
                       Text(
                         preference.value.map { $0 != inverted ? "Enabled" : "Disabled" }
                           ?? "Not set")
@@ -197,7 +208,7 @@ private struct FeatureDetail: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 DisclosureGroup("Preference Details") {
-                  ForEach(Array(status.preferences.enumerated()), id: \.offset) { _, preference in
+                  ForEach(status.preferences) { preference in
                     VStack(alignment: .leading, spacing: 4) {
                       Text("\(preference.domain) · \(preference.key)")
                         .font(.caption.monospaced()).textSelection(.enabled)
@@ -222,16 +233,19 @@ private struct FeatureDetail: View {
             VStack(alignment: .leading, spacing: 12) {
               ForEach(feature.assetSets, id: \.self) { asset in
                 VStack(alignment: .leading, spacing: 4) {
-                  Text(FeaturePresentation.modelTitle(asset)).fontWeight(.medium)
+                  Text(store.modelTitle(asset)).fontWeight(.medium)
                   Text(
-                    store.modelStatuses.first { $0.assetSet == asset }?.summary ?? "Not checked yet"
+                    store.modelStatuses[asset]?.summary ?? "Not checked yet"
                   )
                   .font(.caption).foregroundStyle(.secondary)
                 }
               }
               Text("Shared models remain if any known consumer is enabled or unmanaged.")
                 .font(.caption).foregroundStyle(.secondary)
-              Button("Show Models") { store.section = .models }
+              Button("Show Models") {
+                store.selectedModel = feature.assetSets.first
+                store.section = .models
+              }
             }
             .padding(8).frame(maxWidth: .infinity, alignment: .leading)
           }
@@ -239,18 +253,8 @@ private struct FeatureDetail: View {
         DiagnosticsDisclosure(text: store.lastDiagnostics)
       }
       .padding(24).frame(maxWidth: 700, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
+      .frame(maxWidth: .infinity, alignment: .top)
     }
   }
 
-  private var stateDescription: String {
-    switch store.draft.state(name) {
-    case .enabled:
-      "Permit this feature and retain its models. Enabling it does not download models."
-    case .disabled:
-      "Disable the mapped controls. Models become eligible for removal only when every known consumer is disabled."
-    case .unmanaged:
-      "Remove Pared’s local preference overrides when saved. Replace the profile to remove its controls. Previous preference values are not restored."
-    }
-  }
 }

@@ -3,11 +3,26 @@ import SwiftUI
 struct ProfilePane: View {
   @Bindable var store: GUIStore
 
+  private let instructions: [(title: String, detail: String)] = [
+    (
+      "Save your feature choices",
+      "Saving applies local preferences and generates the profile. Model files are handled separately."
+    ),
+    (
+      "Review and install the profile",
+      "Choose Install Profile, then complete installation in System Settings. Opening the installer does not install it."
+    ),
+    (
+      "Refresh the installation status",
+      "Use Refresh after installation. Replace the profile whenever you change a feature, including when you make it unmanaged."
+    ),
+  ]
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         PageHeading(
-          title: "Install Your Configuration Profile",
+          title: "Finish Setup",
           description:
             "A profile enforces supported feature controls and blocks downloads for models your policy disables.",
           symbol: "doc.badge.gearshape")
@@ -21,7 +36,7 @@ struct ProfilePane: View {
               .font(.headline)
               if status.installed {
                 Text(
-                  "\(status.installedPayloadCount) payloads reported. Installed metadata does not confirm the contents match your saved policy or prove runtime enforcement."
+                  "macOS reports a Pared profile installed. Install it again after changing your choices so it stays up to date."
                 )
                 .font(.callout).foregroundStyle(.secondary)
               }
@@ -50,9 +65,12 @@ struct ProfilePane: View {
               .font(.callout)
             }
             HStack {
-              Button("Install Profile…", action: store.openProfile)
-                .buttonStyle(.borderedProminent)
-                .disabled(!store.canUseSavedPolicy)
+              Button(
+                store.profileNeedsReplacement ? "Install Updated Profile…" : "Install Profile…",
+                action: store.openProfile
+              )
+              .buttonStyle(.borderedProminent)
+              .disabled(!store.canUseSavedPolicy)
               Button("Export…", action: store.exportProfile)
                 .disabled(!store.canUseSavedPolicy)
             }
@@ -72,32 +90,30 @@ struct ProfilePane: View {
         }
         GroupBox("Finish in System Settings") {
           VStack(alignment: .leading, spacing: 18) {
-            step(
-              1, title: "Save your feature choices",
-              detail:
-                "Saving applies local preferences and generates the profile. Model files are handled separately."
-            )
-            step(
-              2, title: "Review and install the profile",
-              detail:
-                "Choose Install Profile, then complete installation in System Settings. Opening the installer does not install it."
-            )
-            step(
-              3, title: "Refresh the installation status",
-              detail:
-                "Use Refresh after installation. Replace the profile whenever you change a feature, including when you make it unmanaged."
-            )
+            ForEach(instructions.enumerated(), id: \.offset) { index, instruction in
+              step(index + 1, title: instruction.title, detail: instruction.detail)
+            }
           }
           .padding(8).frame(maxWidth: .infinity, alignment: .leading)
         }
-        Text(
-          "MDM declarations are also generated alongside the policy for features that require device management. They are not an installable configuration profile."
-        )
-        .font(.callout).foregroundStyle(.secondary)
+        DisclosureGroup("Advanced Details") {
+          VStack(alignment: .leading, spacing: 8) {
+            if let status = store.profileStatus, status.installed {
+              Text("\(status.installedPayloadCount) profile payloads reported.")
+            }
+            Text(
+              "Installed metadata does not confirm the contents match your saved choices or prove runtime enforcement."
+            )
+            Text(
+              "Apple deprecated the legacy AI restrictions in macOS 26.4. Their replacement declarations require supervised MDM enrollment. Pared generates these alongside your settings; they are not an installable profile. Forced preferences and model download blocks are separate from those restrictions."
+            )
+          }
+          .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
+        }
         DiagnosticsDisclosure(text: store.lastDiagnostics)
       }
-      .padding(28).frame(maxWidth: 800, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
+      .padding(28).frame(maxWidth: 860, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .top)
     }
   }
 
@@ -108,7 +124,7 @@ struct ProfilePane: View {
         .background(.quaternary, in: Circle())
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 4) {
-        Text(title).fontWeight(.medium)
+        Text(title).fontWeight(.medium).accessibilityAddTraits(.isHeader)
         Text(detail).font(.callout).foregroundStyle(.secondary)
       }
     }

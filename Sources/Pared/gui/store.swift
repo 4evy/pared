@@ -13,7 +13,7 @@ struct GUIIssue: Identifiable {
 final class GUIStore {
   let catalog: Catalog?
   private let runner: GUICommandRunner
-  var section: GUISection? = .features
+  var section: GUISection? = .overview
   var selectedFeature: String? = "writingTools"
   var selectedModel: String? = "com.apple.modelcatalog"
   var search = ""
@@ -32,21 +32,20 @@ final class GUIStore {
   private(set) var statusError: String?
   private(set) var profileError: String?
   private(set) var modelsError: String?
-  private(set) var featureStatuses: [String: GUIFeatureStatus] = [:]
-  private(set) var modelStatuses: [GUIModelStatus] = []
-  private(set) var profileStatus: GUIProfileStatus?
+  private(set) var featureStatuses: [String: FeatureStatus] = [:]
+  private(set) var modelStatuses: [String: ModelStatus] = [:]
+  private(set) var profileStatus: ProfileInstallationStatus?
   private(set) var profileCheckedAt: Date?
   private(set) var modelsCheckedAt: Date?
   private(set) var profileNeedsReplacement = false
   private(set) var lastDiagnostics = ""
   var issue: GUIIssue?
   var cleanupReview: [String]?
+  var quickActionReview: GUIQuickAction?
+  private(set) var downloadPreparation: String?
 
-  init() {
-    let arguments = Array(CommandLine.arguments.dropFirst())
-    if arguments.count == 3, arguments[0] == "gui", arguments[1] == "--policy" {
-      policyURL = URL(fileURLWithPath: arguments[2]).standardizedFileURL
-    }
+  init(policyURL: URL? = nil) {
+    if let policyURL { self.policyURL = policyURL.standardizedFileURL }
     runner = GUICommandRunner(
       executable: Bundle.main.executableURL
         ?? URL(fileURLWithPath: CommandLine.arguments[0]))
@@ -59,31 +58,72 @@ final class GUIStore {
   }
 
   var features: [FeaturePresentation] {
-    (catalog?.features.keys.sorted() ?? []).map(FeaturePresentation.init)
+    catalog?.presentations ?? []
   }
 
+  func presentation(_ name: String) -> FeaturePresentation {
+    catalog?.presentation(name) ?? FeaturePresentation(name)
+  }
+
+  func modelTitle(_ assetSet: String) -> String { catalog?.modelTitle(assetSet) ?? assetSet }
+
   var changedNames: [String] {
-    features.map(\.id).filter { draft.state($0) != policy.state($0) }
+    guard let catalog else { return [] }
+    return draft.changedFeatureNames(from: policy, in: catalog)
   }
 
   var hasChanges: Bool { !changedNames.isEmpty }
 
   var working: Bool { busy || refreshing }
 
+  var canEditChoices: Bool {
+    loaded && policyError == nil && !working && !readOnly
+  }
+
+  var downloadFeatures: [FeaturePresentation] {
+    features.filter { catalog?.features[$0.id]?.recovery != nil }
+      .sorted(
+        using: KeyPathComparator(\.title, comparator: String.StandardComparator.localizedStandard))
+  }
+
+  func reviewQuickAction(_ action: GUIQuickAction) {
+    guard canEditChoices else { return }
+    quickActionReview = action
+  }
+
+  func confirmQuickAction() {
+    guard canEditChoices, let action = quickActionReview else { return }
+    quickActionReview = nil
+    switch action {
+    case .turnOffAll, .turnOffAndRemoveAll:
+      downloadPreparation = nil
+      setAll(.disabled)
+    case .enableFeature(let name):
+      guard catalog?.features[name]?.recovery != nil else { return }
+      draft.features[name] = .enabled
+      downloadPreparation = name
+    }
+    if canSave {
+      saveChoices(reviewRemoval: action == .turnOffAndRemoveAll)
+    } else if action == .turnOffAndRemoveAll {
+      reviewCleanup()
+    }
+  }
+
   var policyStateTitle: String {
-    if policyError != nil { return "Policy unavailable" }
-    if !loaded { return "Loading policy…" }
+    if policyError != nil { return "Settings unavailable" }
+    if !loaded { return "Loading settings…" }
     if readOnly { return "Managed by Nix" }
-    if !policyExists { return "New policy" }
-    return hasChanges ? "Unsaved choices" : "Saved policy"
+    if !policyExists { return "Not set up yet" }
+    return hasChanges ? "Unsaved changes" : "Saved choices"
   }
 
   var savedPolicyRequirement: String? {
-    if policyError != nil { return "Open a valid policy to continue." }
-    if !loaded { return "Loading your policy…" }
+    if policyError != nil { return "Open a valid settings file to continue." }
+    if !loaded { return "Loading your settings…" }
     if busy { return "Wait for the current operation to finish." }
     if refreshing { return "Checking the current status…" }
-    if !policyExists { return "Save your first policy to continue." }
+    if !policyExists { return "Save your choices to continue." }
     if hasChanges { return "Save or discard your pending changes first." }
     return nil
   }
@@ -96,15 +136,7 @@ final class GUIStore {
         || (catalog?.features[feature.id]?.description.localizedCaseInsensitiveContains(search)
           == true)
         || feature.id.localizedCaseInsensitiveContains(search)
-      let matchesFilter: Bool
-      switch featureFilter {
-      case .all: matchesFilter = true
-      case .enabled: matchesFilter = draft.state(feature.id) == .enabled
-      case .disabled: matchesFilter = draft.state(feature.id) == .disabled
-      case .unmanaged: matchesFilter = draft.state(feature.id) == .unmanaged
-      case .changes: matchesFilter = changedNames.contains(feature.id)
-      }
-      return matchesSearch && matchesFilter
+      return matchesSearch && featureFilter.includes(feature.id, draft: draft, saved: policy)
     }
   }
 
@@ -144,8 +176,8 @@ final class GUIStore {
   }
 
   func setAll(_ state: FeatureState) {
-    guard loaded, !busy, !readOnly else { return }
-    for feature in features { draft.features[feature.id] = state }
+    guard canEditChoices else { return }
+    draft.set(state, for: features.map(\.id))
   }
 
   func refresh() {
@@ -174,16 +206,16 @@ final class GUIStore {
       policyError = String(describing: error)
       loaded = false
       featureStatuses = [:]
-      modelStatuses = []
+      modelStatuses = [:]
       profileStatus = nil
       return
     }
     // Read an unsaved default policy without creating it on first launch
     let queryURL: URL? = policyExists || policyURL != Policy.defaultURL ? policyURL : nil
     do {
-      let result = try await runner.run(["status"], policyURL: queryURL)
+      let result = try await runner.run(.status, policyURL: queryURL)
       try result.requireSuccess()
-      featureStatuses = try result.decode([String: GUIFeatureStatus].self)
+      featureStatuses = try result.decode([String: FeatureStatus].self)
       statusError = nil
     } catch {
       featureStatuses = [:]
@@ -191,10 +223,11 @@ final class GUIStore {
     }
     activity = "Checking profile…"
     do {
-      let result = try await runner.run(["profile", "status"], policyURL: queryURL)
-      // An absent profile exits 1 with valid JSON; query failures have no status
-      if result.output.isEmpty { try result.requireSuccess() }
-      profileStatus = try result.decode(GUIProfileStatus.self)
+      let result = try await runner.run(.profileStatus, policyURL: queryURL)
+      // An absent profile exits 1 with valid JSON; query failures have no
+      // status
+      if result.standardOutput.isEmpty { try result.requireSuccess() }
+      profileStatus = try result.decode(ProfileInstallationStatus.self)
       profileError = nil
     } catch {
       profileStatus = nil
@@ -203,12 +236,14 @@ final class GUIStore {
     profileCheckedAt = Date()
     activity = "Checking models…"
     do {
-      let result = try await runner.run(["models", "status"], policyURL: queryURL)
-      if result.output.isEmpty { try result.requireSuccess() }
-      modelStatuses = try result.decode([GUIModelStatus].self)
+      let result = try await runner.run(.models, policyURL: queryURL)
+      if result.standardOutput.isEmpty { try result.requireSuccess() }
+      modelStatuses = Dictionary(
+        try result.decode([ModelStatus].self).map { ($0.assetSet, $0) },
+        uniquingKeysWith: { first, _ in first })
       modelsError = nil
     } catch {
-      modelStatuses = []
+      modelStatuses = [:]
       modelsError = String(describing: error)
     }
     modelsCheckedAt = Date()
@@ -221,7 +256,7 @@ final class GUIStore {
     let exists = FileManager.default.fileExists(atPath: policyURL.path)
     let current = try Policy.load(
       policyURL, explicit: policyURL != Policy.defaultURL, catalog: catalog)
-    guard exists == policyExists, try jsonData(current) == jsonData(policy) else {
+    guard exists == policyExists, current == policy else {
       throw CLIError(
         "This policy changed outside the app. Discard your pending edits and refresh before continuing."
       )
@@ -229,6 +264,10 @@ final class GUIStore {
   }
 
   func save() {
+    saveChoices(reviewRemoval: false)
+  }
+
+  private func saveChoices(reviewRemoval: Bool) {
     guard canSave else { return }
     let names = policyExists ? changedNames : features.map(\.id)
     let requested = draft
@@ -238,24 +277,24 @@ final class GUIStore {
     Task {
       var diagnostics: [String] = []
       var beganSaving = false
+      var saved = false
       do {
         try verifyPolicyUnchanged()
-        for (state, command) in [
-          (FeatureState.enabled, "enable"), (.disabled, "disable"), (.unmanaged, "reset"),
-        ] {
-          let selected = names.filter { requested.state($0) == state }
-          guard !selected.isEmpty else { continue }
+        let groups = Dictionary(grouping: names, by: requested.state)
+        for command in Command.allCases {
+          guard let state = command.desiredState else { continue }
+          guard let selected = groups[state], !selected.isEmpty else { continue }
           beganSaving = true
-          let result = try await runner.run([command] + selected, policyURL: policyURL)
+          let result = try await runner.run(command, names: selected, policyURL: policyURL)
           diagnostics.append(result.diagnostics)
           try result.requireSuccess()
         }
         profileNeedsReplacement = true
-        notice =
-          "Settings saved. Install the updated profile to enforce managed controls and block downloads."
-        noticeDestination = .profile
+        notice = "Your choices have been saved."
+        noticeDestination = .overview
         lastDiagnostics = diagnostics.joined(separator: "\n\n")
         await reload(replaceDraft: true)
+        saved = loaded && !hasChanges
       } catch {
         lastDiagnostics = diagnostics.joined(separator: "\n\n")
         issue = GUIIssue(
@@ -271,6 +310,7 @@ final class GUIStore {
         }
       }
       busy = false
+      if saved && reviewRemoval { reviewCleanup() }
     }
   }
 
@@ -283,7 +323,7 @@ final class GUIStore {
   func choosePolicy() {
     guard !working else { return }
     let panel = NSOpenPanel()
-    panel.title = "Open Policy"
+    panel.title = "Open Settings File"
     panel.allowedContentTypes = [.json]
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = false
@@ -304,7 +344,7 @@ final class GUIStore {
     loaded = false
     policyExists = false
     featureStatuses = [:]
-    modelStatuses = []
+    modelStatuses = [:]
     profileStatus = nil
     profileCheckedAt = nil
     modelsCheckedAt = nil
@@ -314,6 +354,9 @@ final class GUIStore {
     modelsError = nil
     profileError = nil
     profileNeedsReplacement = false
+    downloadPreparation = nil
+    quickActionReview = nil
+    cleanupReview = nil
     lastDiagnostics = ""
     notice = nil
     noticeDestination = nil
@@ -333,7 +376,7 @@ final class GUIStore {
   func openProfile() {
     guard canUseSavedPolicy else { return }
     perform(
-      title: "Opening profile installer…", arguments: ["profile", "open"],
+      title: "Opening profile installer…", command: .openProfile,
       success:
         "Finish installing the profile in System Settings, then refresh to check its installation.")
   }
@@ -366,7 +409,7 @@ final class GUIStore {
       do {
         try verifyPolicyUnchanged()
         let result = try await runner.run(
-          ["models", "cleanup", "--dry-run"], policyURL: policyURL)
+          .cleanup, policyURL: policyURL, dryRun: true)
         try result.requireSuccess()
         let targets = try result.decode([String].self)
         guard targets == cleanupTargets else {
@@ -389,9 +432,9 @@ final class GUIStore {
       return
     }
     perform(
-      title: "Requesting model removal…", arguments: ["models", "cleanup"],
+      title: "Requesting model removal…", command: .cleanup,
       success:
-        "The removal request returned successfully. Refresh the snapshots and check free space to assess the result.",
+        "No model folders remain for the selected sets. Reclaimed disk space was not measured.",
       reviewedTargets: reviewed
     )
   }
@@ -401,14 +444,15 @@ final class GUIStore {
       catalog?.features[name]?.recovery != nil
     else { return }
     perform(
-      title: "Requesting download…", arguments: ["models", "download", name],
+      title: "Requesting download…", command: .download, names: [name],
       success:
-        "Apple accepted the download request. The download continues in the background; refresh to check a new snapshot."
+        "Download requested for \(presentation(name).title). It continues in the background; refresh to check again."
     )
   }
 
   private func perform(
-    title: String, arguments: [String], success: String, reviewedTargets: [String]? = nil
+    title: String, command: Command, names: [String] = [], success: String,
+    reviewedTargets: [String]? = nil
   ) {
     busy = true
     activity = title
@@ -419,14 +463,17 @@ final class GUIStore {
         let result: GUICommandResult
         if let reviewedTargets {
           result = try await runner.cleanup(
-            reviewedTargets: reviewedTargets, policyData: jsonData(policy), policyURL: policyURL)
+            reviewedTargets: reviewedTargets, policy: policy, policyURL: policyURL)
         } else {
-          result = try await runner.run(arguments, policyURL: policyURL)
+          result = try await runner.run(command, names: names, policyURL: policyURL)
         }
         lastDiagnostics = result.diagnostics
         try result.requireSuccess()
+        if command == .download, let name = names.first, downloadPreparation == name {
+          downloadPreparation = nil
+        }
         notice = success
-        noticeDestination = arguments.first == "models" ? .models : .profile
+        noticeDestination = command.isModelCommand ? .overview : .profile
       } catch {
         issue = GUIIssue(
           title: "Operation could not be completed", message: String(describing: error))

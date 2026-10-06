@@ -2,27 +2,26 @@ import SwiftUI
 
 struct ModelsPane: View {
   @Bindable var store: GUIStore
+  @State private var sortOrder = [KeyPathComparator(\ModelRow.title)]
+  @State private var showsDownloads = false
 
   private var modelRows: [ModelRow] {
     (store.catalog?.assetTypes.keys.sorted() ?? []).map { asset in
-      let status = store.modelStatuses.first { $0.assetSet == asset }
+      let status = store.modelStatuses[asset]
       return ModelRow(
-        id: asset, title: FeaturePresentation.modelTitle(asset),
+        id: asset, title: store.modelTitle(asset),
         snapshot: status?.summary ?? "Not checked yet",
-        reportedSize: status?.localSnapshot.map {
-          ByteCountFormatter.string(
-            fromByteCount: $0.downloadedFilesystemBytes, countStyle: .file)
-        },
+        reportedBytes: status?.localSnapshot?.downloadedFilesystemBytes,
         policy: !store.policyExists
           ? "Not saved" : store.cleanupTargets.contains(asset) ? "Eligible" : "Retained")
-    }
+    }.sorted(using: sortOrder)
   }
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         PageHeading(
-          title: "Manage Downloaded Models",
+          title: "Downloaded Models",
           description:
             "Review what can be removed, or request models for a feature you’ve enabled.",
           symbol: "internaldrive")
@@ -30,9 +29,9 @@ struct ModelsPane: View {
           VStack(alignment: .leading, spacing: 12) {
             Label(
               !store.policyExists
-                ? "Save a policy to review removal"
+                ? "Save your choices to review removal"
                 : store.cleanupTargets.isEmpty
-                  ? "All model sets are retained by your policy"
+                  ? "All model sets are retained by your saved choices"
                   : "\(store.cleanupTargets.count) model sets eligible for removal",
               systemImage: store.cleanupTargets.isEmpty ? "shield" : "internaldrive"
             )
@@ -58,7 +57,7 @@ struct ModelsPane: View {
             symbol: "exclamationmark.triangle", isError: true)
         }
         VStack(alignment: .leading, spacing: 12) {
-          Text("Model Snapshots").font(.headline)
+          Text("Model Snapshots").font(.headline).accessibilityAddTraits(.isHeader)
           Text("A snapshot is not live download progress or a measurement of reclaimed disk space.")
             .font(.callout).foregroundStyle(.secondary)
           if let checkedAt = store.modelsCheckedAt {
@@ -68,17 +67,26 @@ struct ModelsPane: View {
             }
             .font(.caption).foregroundStyle(.secondary)
           }
-          Table(modelRows, selection: $store.selectedModel) {
-            TableColumn("Model", value: \.title)
-              .width(min: 120, ideal: 180, max: 260)
-            TableColumn("Snapshot", value: \.snapshot)
-              .width(min: 120, ideal: 180, max: 280)
-            TableColumn("Reported Size") { row in
+          Table(modelRows, selection: $store.selectedModel, sortOrder: $sortOrder) {
+            TableColumn("Model", value: \.title) { row in
+              Text(row.title).help(row.title)
+            }
+            .width(min: 120, ideal: 180, max: 260)
+            TableColumn("Snapshot", value: \.snapshot) { row in
+              Text(row.snapshot).help(row.snapshot)
+            }
+            .width(min: 150, ideal: 200, max: 280)
+            TableColumn(
+              "Reported Size", value: \.self,
+              comparator: KeyPathComparator(\ModelRow.reportedBytes)
+            ) { row in
               Text(row.reportedSize ?? "—")
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .trailing)
                 .accessibilityLabel(row.reportedSize ?? "Not available")
             }
             .width(min: 90, ideal: 110, max: 170)
-            TableColumn("Policy", value: \.policy)
+            TableColumn("Removal", value: \.policy)
               .width(min: 75, ideal: 90, max: 150)
           }
           .tableStyle(.inset(alternatesRowBackgrounds: true))
@@ -90,16 +98,16 @@ struct ModelsPane: View {
             ModelSnapshotDetail(store: store, asset: asset)
           }
         }
-        GroupBox("Download Again") {
+        DisclosureGroup("Download models again", isExpanded: $showsDownloads) {
           VStack(alignment: .leading, spacing: 14) {
             Text(
-              "Enable the feature, save, and install the replacement profile first. Requests continue downloading in the background after Apple accepts them."
+              "Enable the feature, save your choices, and install the updated profile first. Downloads continue in the background after Apple accepts the request."
             )
             .foregroundStyle(.secondary)
-            ForEach(store.features.filter { store.catalog?.features[$0.id]?.recovery != nil }) {
-              feature in
+            ForEach(store.downloadFeatures) { feature in
               HStack(spacing: 12) {
                 Image(systemName: feature.symbol).frame(width: 24).foregroundStyle(.secondary)
+                  .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                   Text(feature.title)
                   Text(store.policy.state(feature.id).title)
@@ -116,10 +124,13 @@ struct ModelsPane: View {
           }
           .padding(8).frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(20)
+        .background(
+          Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
         DiagnosticsDisclosure(text: store.lastDiagnostics)
       }
-      .padding(28).frame(maxWidth: 880, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
+      .padding(28).frame(maxWidth: 860, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .top)
     }
   }
 }
@@ -128,30 +139,34 @@ private struct ModelRow: Identifiable {
   let id: String
   let title: String
   let snapshot: String
-  let reportedSize: String?
+  let reportedBytes: Int64?
   let policy: String
+
+  var reportedSize: String? {
+    reportedBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+  }
 }
 
 private struct ModelSnapshotDetail: View {
   let store: GUIStore
   let asset: String
 
-  private var status: GUIModelStatus? {
-    store.modelStatuses.first { $0.assetSet == asset }
+  private var status: ModelStatus? {
+    store.modelStatuses[asset]
   }
 
   private var retainedConsumers: [FeaturePresentation] {
-    store.features.filter {
-      store.catalog?.features[$0.id]?.assetSets.contains(asset) == true
-        && store.policy.state($0.id) != .disabled
-    }
+    (store.catalog?.consumers(of: asset) ?? [])
+      .filter { store.policy.state($0) != .disabled }
+      .map(store.presentation)
   }
 
   var body: some View {
     GroupBox {
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .firstTextBaseline) {
-          Text(FeaturePresentation.modelTitle(asset)).font(.headline)
+          Text(store.modelTitle(asset)).font(.headline)
+            .accessibilityAddTraits(.isHeader)
           Spacer()
           Label(
             !store.policyExists
@@ -221,20 +236,22 @@ struct CleanupReview: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       PageHeading(
-        title: "Remove These Model Sets?",
-        description: "Every known consumer of these sets is disabled in your saved policy.",
+        title: "Remove These Models?",
+        description: "Your saved choices turn off every feature Pared knows uses these models.",
         symbol: "internaldrive")
       VStack(alignment: .leading, spacing: 10) {
         ForEach(store.cleanupReview ?? [], id: \.self) { asset in
-          Label(FeaturePresentation.modelTitle(asset), systemImage: "cube")
+          Label(store.modelTitle(asset), systemImage: "cube")
         }
       }
       .padding(16).frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
       Text(
-        "This requests removal through Apple’s asset service. You’ll need to download the models again to use them later. System Integrity Protection stays enabled."
+        "Pared asks macOS to remove these model files. You’ll need to download them again to use these features later. macOS may keep files that are still in use."
       )
       .foregroundStyle(.secondary)
+      Text("Canceling removal keeps your saved feature choices.")
+        .font(.caption).foregroundStyle(.secondary)
       if store.profileStatus?.installed != true || store.profileNeedsReplacement {
         Label(
           "Install the updated profile to help prevent these models from downloading again.",
