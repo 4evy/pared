@@ -64,7 +64,7 @@ const example = `{
       </p>
       <InstallCommands initialMethod="app" />
       <p class="my-3">
-        To build the app before prebuilt downloads are available, follow the
+        For source builds, see the
         <a
           class="guide-link"
           href="https://github.com/4evy/pared#build-from-source"
@@ -78,18 +78,14 @@ const example = `{
       </p>
       <h3 class="guide-subheading">Using the terminal wizard</h3>
       <p class="my-3">
-        The terminal installer opens the wizard. Choose
-        <strong>Guided setup</strong>
-        to work through feature choices, profile installation, and optional
-        model removal. Run
-        <code>pared wizard</code>
-        to return later.
+        The installer opens the wizard. Choose <strong>Guided setup</strong>
+        for a walkthrough, or run <code>pared wizard</code> to return later.
       </p>
       <p class="my-3">
         Use arrow keys and Enter to navigate, Space to select features, and
         <code>/</code>
-        to search. Changes stay in a draft until you save. You can skip steps or
-        return to the menu; completed actions are kept.
+        to search. Changes stay in a draft until you save; completed actions are
+        kept if you skip steps.
       </p>
     </section>
     <section
@@ -107,32 +103,29 @@ const example = `{
       <ul class="my-3 list-disc pl-6">
         <li>
           <strong>On</strong>
-          permits the feature and keeps its models. Turning it on does not
-          download missing models.
+          permits the feature and keeps its models without downloading missing
+          ones.
         </li>
         <li>
           <strong>Off</strong>
-          disables the controls Pared supports. Its models are eligible for
-          removal when every known feature sharing them is off.
+          disables supported controls. Models can be removed when every known
+          feature sharing them is off.
         </li>
         <li>
           <strong>App Default</strong>
-          removes Pared’s local preference overrides and leaves the feature
-          unmanaged. It does not restore older values; Apple supplies defaults
-          where no other policy applies.
+          removes local overrides without restoring older values. Apple supplies
+          defaults where no other policy applies.
         </li>
       </ul>
       <p class="my-3">
-        Save, then open <strong>Setup</strong> and finish profile installation
-        in System Settings. The profile applies supported controls and blocks
-        downloads for model groups whose known features are all off. It keeps
-        its settings until replaced or removed, so replace it after each change,
-        including App Default.
+        Save, open <strong>Setup</strong>, and install the profile in System
+        Settings. It applies supported controls and blocks unwanted downloads.
+        Replace it after every change, including App Default; its settings stay
+        in effect until replaced or removed.
       </p>
       <p class="my-3">
-        Some restrictions require supervised mobile device management (MDM)
-        enrollment. An installed profile does not establish that macOS enforces
-        every choice. See the
+        Some restrictions require supervised mobile device management (MDM).
+        Installing a profile does not guarantee every control works; see the
         <a
           class="guide-link"
           href="https://github.com/4evy/pared/blob/master/docs/how-it-works.md#profile-compatibility"
@@ -153,22 +146,20 @@ const example = `{
         choices alone does not remove models.
       </p>
       <p class="my-3">
-        A group is eligible only when every feature in Pared’s catalog that uses
-        it is off. Keeping Siri, for example, keeps its shared foundation
-        models. Apple’s asset service performs removal, so System Integrity
-        Protection (SIP) stays enabled.
+        Shared models stay while any known feature needs them, including Siri’s
+        foundation models. Apple’s asset service handles removal, so System
+        Integrity Protection (SIP) stays enabled.
       </p>
       <h3 class="guide-subheading">If models stay after removal</h3>
       <p class="my-3">
-        macOS can keep models that are in use. Close affected apps, log out or
-        restart, then check <code>pared models status</code> before retrying.
-        Keep the matching profile installed to block new downloads.
+        Close affected apps, log out or restart, then check
+        <code>pared models status</code>
+        before retrying. After a timeout, check status first: removal may
+        already have happened.
       </p>
       <p class="my-3">
-        Pared checks that selected model folders are gone; it does not measure
-        recovered disk space. macOS may update its storage total later. A
-        timed-out request may already have removed models, so check their status
-        before retrying.
+        Pared checks folders, not recovered disk space; macOS may update its
+        storage total later. Keep the profile installed to block new downloads.
       </p>
       <h3 class="guide-subheading">To use a feature again</h3>
       <p class="my-3">
@@ -230,13 +221,14 @@ pared models cleanup --dry-run</code></pre>
       </p>
       <pre class="guide-code my-4"><code>{example}</code></pre>
       <p class="my-3">
-        The example enables Writing Tools, leaves Spatial Photos unmanaged, and
-        disables every other feature. Unlisted features inherit
-        <code>defaultState</code>, which defaults to <code>false</code>. Set a
-        feature to <code>true</code> to enable it, <code>false</code>
-        to disable it, or <code>null</code> to leave it unmanaged. Changing a
-        value to <code>null</code> stops writing its preferences; it does not
-        remove values applied earlier.
+        Use <code>true</code> for on, <code>false</code> for off, and
+        <code>null</code>
+        for unmanaged. Unlisted features inherit
+        <code>defaultState</code>
+        (default: <code>false</code>), so this example disables everything
+        except Writing Tools and Spatial Photos. Setting
+        <code>null</code>
+        stops writing preferences but leaves earlier values in place.
       </p>
       <h3 class="guide-subheading">Rebuild and install the profile</h3>
       <p class="my-3">

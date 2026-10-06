@@ -9,7 +9,6 @@ import Terminal from '@lucide/svelte/icons/terminal';
 import { onDestroy, untrack } from 'svelte';
 import {
   appDownload,
-  releasesPage,
   homebrewCommand,
   installCommand,
   nixCommand,
@@ -152,12 +151,6 @@ onDestroy(() => clearTimeout(resetTimer));
         {:else}
           Requires Nix with flakes enabled.
         {/if}
-      </p>
-    {/if}
-    {#if compact || method === 'app' || method === 'script'}
-      <p class="command-note release-note">
-        Downloads are available with the
-        <a href={releasesPage}>first prebuilt release</a>.
       </p>
     {/if}
     {#if compact}

@@ -1,15 +1,13 @@
 # Pared from the terminal
 
-Choose your features, install the matching profile, then remove models you no
-longer need. Run `pared wizard` for guided setup or follow the commands below.
-Pared requires an Apple silicon Mac (M1 or newer) running macOS 27 or newer.
+Run `pared wizard` for guided setup or use the commands below. Requires Apple
+silicon and macOS 27 or newer.
 
 ## Install
 
 ### Guided installer
 
-The installer becomes available with the first prebuilt release. Once published,
-open **Terminal** from Applications -\> Utilities and run:
+Run in Terminal:
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
@@ -18,8 +16,8 @@ curl --fail --location --proto '=https' --proto-redir '=https' \
 sh "$HOME/Downloads/pared-install.sh"
 ```
 
-The installer checks the CLI archive’s SHA-256 checksum and opens the wizard.
-The prebuilt CLI needs no Swift, Xcode, or Homebrew.
+The installer verifies the CLI’s SHA-256 checksum and opens the wizard. No Xcode
+or Homebrew needed.
 
 Choose **Install Pared** to install in `~/.local` or another directory. If you
 add Pared to your shell’s `PATH`, open a new terminal window afterward. Updating
@@ -58,25 +56,18 @@ From a local checkout, `nix build` produces `./result/bin/pared`.
 
 ## Guided setup
 
-Run `pared wizard` and choose **Guided setup** for feature choices, profile
-installation, optional model removal, and CLI installation. You can skip steps
-or return to the menu; completed actions are kept.
+Run `pared wizard` and choose **Guided setup**. It walks through feature
+choices, profile installation, optional model removal, and CLI installation. You
+can skip steps; completed actions are kept.
 
 Use arrow keys and Enter to navigate, Space to select features, and `/` to
-search. Choose **Change more features** to combine choices, such as turning all
-features off and then turning Writing Tools back on. Changes stay in a draft
-until you save; discarding the draft changes nothing.
+search. **Change more features** combines choices before saving. A new policy
+starts with everything off; review the draft before saving or discard it to
+leave settings unchanged. Model removal has a separate preview and confirmation.
 
-A new policy starts with every feature disabled. Review the full draft before
-saving. Opening the wizard changes nothing; model removal has a separate preview
-and confirmation. Finish profile installation in System Settings.
-
-Use `pared wizard --policy /path/to/policy.json` to open or create a policy. Run
-`pared wizard --help` for options. The terminal must be at least 40 columns wide
-and 16 rows tall. Confirmations default to No.
-
-The wizard’s cleanup preview lists eligible model groups; it does not measure
-their size or recovered disk space.
+Use `--policy FILE` to open or create another policy. The wizard needs a
+terminal at least 40 columns wide and 16 rows tall. Confirmations default to No;
+removal previews list model groups, not disk space.
 
 ## Inspect your settings
 
@@ -85,12 +76,10 @@ pared features
 pared status
 ```
 
-`features` lists names you can use in commands. `status` shows your saved
-choices and the preferences Pared can read; it does not verify runtime
-enforcement. These choices form a *policy*, stored by default at
-`~/Library/Application Support/pared/policy.json`.
-
-Use `--policy FILE` with a command to read a policy at another path.
+`features` lists names for commands. `status` shows saved choices and readable
+preferences, not runtime enforcement. Choices form a *policy*, stored at
+`~/Library/Application Support/pared/policy.json` by default. Use
+`--policy FILE` with a command to select another path.
 
 ## Choose features and install the profile
 
@@ -102,16 +91,13 @@ pared enable writingTools
 pared profile open
 ```
 
-Finish installing the generated profile in System Settings. It applies supported
-controls and blocks downloads for model groups whose known features are all
-disabled. Replace it whenever you change feature choices: the installed profile
-keeps its settings until you replace or remove it. See the [profile
-compatibility notes](how-it-works.md#profile-compatibility) for controls that
-require MDM.
+Install the profile in System Settings to apply supported controls and block
+unwanted model downloads. Replace it after every change; its settings stay in
+effect until replaced or removed. Some controls require device management; see
+[profile compatibility](how-it-works.md#profile-compatibility).
 
 `enable`, `disable`, and `reset` save choices and apply supported local
-preferences. Enabling a feature keeps its models but does not download missing
-ones. Changing choices does not delete models.
+preferences. They do not download or remove models.
 
 ## Remove downloaded models
 
@@ -121,24 +107,22 @@ After installing the matching profile, preview removal:
 pared models cleanup --dry-run
 ```
 
-When you are ready, run removal. This command does not ask for confirmation:
+Remove them **without a confirmation prompt**:
 
 ```sh
 pared models cleanup
 ```
 
-Only groups whose known features are all disabled are selected. Shared models
-stay when any feature in Pared’s catalog is enabled or unmanaged.
+Only groups whose known features are all disabled are removed. Shared models
+stay if any feature in Pared’s catalog is enabled or unmanaged.
 
-Pared checks the selected model folders after Apple’s service replies. Cleanup
-fails if any remain or cannot be inspected. If models are still in use, close
-affected apps, log out or restart, then run `pared models status` before
-retrying.
+Cleanup fails if selected model folders remain or cannot be inspected. For
+models still in use, close affected apps, log out or restart, then check
+`pared models status` before retrying. Check status after timeouts too: removal
+may already have happened.
 
-Keep the matching profile installed to block future downloads. The folder check
-does not measure recovered APFS disk space; System Settings may update its
-storage total later. A timed-out request may still have changed models; check
-their status before retrying.
+Keep the profile installed to block new downloads. Pared checks folders, not
+recovered APFS space; System Settings may update its storage total later.
 
 ## Keep Siri
 
@@ -160,17 +144,16 @@ other macOS features, so a running process alone does not show that Siri is on.
 
 ## Let an app use its defaults
 
-To stop managing a feature, remove its local preference overrides and replace
-the profile:
+To stop managing a feature:
 
 ```sh
 pared reset inlinePredictions
 pared profile open
 ```
 
-`reset` leaves the feature unmanaged and removes its local preference overrides.
-It does not restore values from before Pared ran. Apple supplies defaults where
-no other policy applies.
+Install the replacement profile to finish. `reset` removes local overrides; it
+does not restore earlier values. Apple supplies defaults where no other policy
+applies.
 
 ## Download models again
 
@@ -185,10 +168,9 @@ pared models download genmoji
 pared models status genmoji
 ```
 
-Success means Apple’s service accepted the download subscription. Downloads run
-in the background; `models status` shows a snapshot and local directories, not
-live progress. For features without a download mapping, turn them on in their
-Apple app.
+Success means Apple accepted the request; downloads continue in the background.
+`models status` shows a snapshot and local folders, not live progress. For
+features without a download mapping, turn them on in their Apple app.
 
 ## Open the macOS app
 
@@ -196,12 +178,7 @@ Run `pared gui` to open the native interface. Use **File -\> Open Settings
 File** or `pared gui --policy FILE` to inspect another policy. Policies in
 `/nix/store` are read-only in the app; change them in Nix and rebuild.
 
-To build a Finder app from this checkout with Xcode 27 or newer:
-
-```sh
-tools/build-app.sh
-open .build/Pared.app
-```
+For source builds, see the [build instructions](../README.md#build-from-source).
 
 ## Use a Nix-managed policy
 
@@ -220,15 +197,13 @@ Alongside the policy, `disable-apple-intelligence.mobileconfig` is the profile
 to install in System Settings. `declarations.json` is for supervised mobile
 device management (MDM) enrollment and cannot be installed there.
 
-Both Nix modules remove eligible models during activation by default. They skip
-cleanup when the policy matches the last successful cleanup. A changed policy or
-failed cleanup triggers another attempt on activation. Set
-`programs.pared.cleanupOnActivation = false;` to opt out.
-
-Home Manager respects activation dry runs and keeps its cleanup record under
-`$XDG_STATE_HOME/pared`; nix-darwin uses `/var/db/pared`. Activation does not
-install the profile. Follow the [Nix setup
+Both modules clean up eligible models during activation, retrying after policy
+changes or failures. Set `programs.pared.cleanupOnActivation = false;` to opt
+out. Activation does not install the profile. See the [Nix setup
 guide](https://4evy.github.io/pared/docs/#quick-start) for configuration.
+
+Home Manager respects activation dry runs and stores its cleanup record in
+`$XDG_STATE_HOME/pared`; nix-darwin uses `/var/db/pared`.
 
 Run `pared --help` for all commands. Read [how profiles and model removal
 work](how-it-works.md) for implementation details.

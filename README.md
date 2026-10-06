@@ -16,17 +16,14 @@
   Unzip the download and drag Pared to Applications.
 </p>
 
-**Prefer the guided terminal installer?** Open **Terminal** from Applications ->
-Utilities, paste this command, and press Return:
+**Prefer the terminal?** Run this to open the setup wizard:
 
 ```sh
 curl -fsSL --proto '=https' --proto-redir '=https' \
   https://github.com/4evy/pared/releases/latest/download/install.sh | sh
 ```
 
-Both downloads require an Apple silicon Mac running macOS 27 or newer and will
-be available with the [first prebuilt release](https://github.com/4evy/pared/releases).
-The terminal installer opens a wizard; you don’t need Xcode or Homebrew.
+Requires Apple silicon and macOS 27 or newer. No Xcode or Homebrew needed.
 
 <p align="center">
   <a href="https://4evy.github.io/pared/">Website</a> ·
@@ -36,12 +33,9 @@ The terminal installer opens a wizard; you don’t need Xcode or Homebrew.
 
 # Apple Intelligence, on your terms
 
-Pared helps you choose which Apple Intelligence features stay on your Mac. Keep
-Writing Tools, turn off Genmoji, or switch everything off. Then review and
-remove the downloaded models you no longer need.
-
-It’s a native Mac app with a terminal wizard and Nix modules too. System
-Integrity Protection, your Mac’s built-in system protection, stays enabled.
+Choose which Apple Intelligence features stay on your Mac, then remove models
+you no longer need. Pared includes a native app, terminal wizard, and Nix
+modules. System Integrity Protection stays enabled.
 
 <p align="center">
   <img src="docs/site/public/images/app-overview.webp" width="880"
@@ -50,9 +44,8 @@ Integrity Protection, your Mac’s built-in system protection, stays enabled.
 
 ## Keep what you use
 
-Choose features individually, or turn them all off at once. Pared keeps a shared
-model whenever a feature in its catalog still needs it. For example, keeping
-Siri also keeps its shared foundation models.
+Keep Writing Tools, turn off Genmoji, or switch everything off. Pared keeps
+shared models needed by features in its catalog that you leave on or unmanaged.
 
 <p align="center">
   <img src="docs/site/public/images/app-features.webp" width="880"
@@ -74,56 +67,46 @@ Siri also keeps its shared foundation models.
 </p>
 
 Want a feature back? Turn it on, install the updated profile, then request its
-models in Pared. Downloads continue in the background. For features Pared can’t
-request directly, turn them on in their Apple app.
-
-## Build from source
-
-To try the app before prebuilt downloads are available, install Xcode 27 or
-newer and run these commands from this checkout:
-
-```sh
-tools/build-app.sh
-open .build/Pared.app
-```
-
-For the CLI, installation alternatives, and offline setup, see the [command-line
-guide](docs/cli.md#install).
+models in Pared. For features Pared can’t download directly, use their Apple
+app.
 
 ## Use
 
-Open the app to choose features, finish profile setup, and review model removal.
-Opening Pared does not change your settings.
-
-Prefer the terminal? Run `pared wizard` for guided setup. Use arrow keys and
-Enter to move through the menus, Space to select features, and `/` to search.
-Your feature changes stay in a draft until you save.
+Open Pared or run `pared wizard`. Opening either changes nothing; feature
+choices stay in a draft until you save.
 
 <p align="center">
   <img src=".github/assets/wizard.gif" width="880"
     alt="Pared’s terminal wizard selecting features, reviewing a draft, and previewing model removal">
 </p>
 
-The walkthrough previews removal and discards the draft. Read the [command-line
-guide](docs/cli.md) for commands, keeping Siri, and downloading models again.
+See the [app manual](https://4evy.github.io/pared/docs/) or [command-line
+guide](docs/cli.md) for setup and commands.
 
 ### Configure it with Nix
 
-Pared includes nix-darwin and Home Manager modules. Keep your feature choices in
-your configuration and rebuild to apply preferences and generate a profile.
-Install the profile through System Settings to block future downloads.
+Use the nix-darwin or Home Manager module to manage your choices. Both remove
+eligible models during activation by default; set
+`programs.pared.cleanupOnActivation = false;` to opt out. Install the generated
+profile in System Settings to block future downloads.
 
-Both modules also clean up eligible models during activation by default. You can
-turn this off with `programs.pared.cleanupOnActivation = false;`.
-
-Follow the [Nix setup guide](https://4evy.github.io/pared/docs/#quick-start) and
+See the [Nix setup guide](https://4evy.github.io/pared/docs/#quick-start) and
 [option reference](https://4evy.github.io/pared/docs/#sec-options).
+
+## Build from source
+
+With Xcode 27 or newer, run from this checkout:
+
+```sh
+tools/build-app.sh
+open .build/Pared.app
+```
+
+For CLI and offline installation, see the [command-line
+guide](docs/cli.md#install).
 
 ## How it works
 
-Pared asks Apple’s own asset service to remove downloaded models, so System
-Integrity Protection stays on. Its feature catalog connects your choices to
-local settings, profile controls, and the models each feature uses.
-
-Read [how profiles and model removal work](docs/how-it-works.md) for the
-technical details and compatibility limits.
+Pared uses Apple’s asset service to remove models. Read [how profiles and model
+removal work](docs/how-it-works.md) for the implementation and compatibility
+limits.
