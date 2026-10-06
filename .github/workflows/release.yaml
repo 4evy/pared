@@ -37,13 +37,16 @@ jobs:
           }
 
       - name: Build CLI and Finder app
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: sh scripts/package-release.sh
 
       - name: Publish release downloads
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
+          gh release create "$RELEASE_TAG" --verify-tag --notes-file dist/release-notes.md \
+            dist/appcast.xml \
             dist/pared-macos-arm64.tar.gz \
             dist/pared-macos-arm64.tar.gz.sha256 \
             dist/pared-app-macos-arm64.zip \
