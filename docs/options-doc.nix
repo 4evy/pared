@@ -1,7 +1,7 @@
 {
   pkgs,
   lib,
-  revision ? "main",
+  revision ? "master",
 }:
 let
   root = toString ./.. + "/";

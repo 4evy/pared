@@ -1,6 +1,6 @@
 {
   pkgs,
-  revision ? "main",
+  revision ? "master",
 }:
 let
   options = pkgs.callPackage ./options-doc.nix { inherit revision; };

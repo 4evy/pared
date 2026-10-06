@@ -3,11 +3,11 @@
   buildNpmPackage,
   nodejs_24,
   optionsJSON,
-  revision ? "main",
+  revision ? "master",
 }:
 buildNpmPackage {
   pname = "pared-docs";
-  version = "1.0.0";
+  version = lib.trim (builtins.readFile ../VERSION);
   src = lib.fileset.toSource {
     root = ./..;
     fileset = lib.fileset.unions [
