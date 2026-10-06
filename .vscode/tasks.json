@@ -18,8 +18,8 @@
     {
       "label": "pared: test CLI",
       "type": "process",
-      "command": "python3",
-      "args": ["Tests/test_cli.py", "${workspaceFolder}/.build/debug/pared"],
+      "command": "swift",
+      "args": ["Tests/test_cli.swift", "${workspaceFolder}/.build/debug/pared"],
       "options": {
         "cwd": "${workspaceFolder}"
       },

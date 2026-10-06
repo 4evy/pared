@@ -1,5 +1,6 @@
 # SwiftPM build output and Xcode user settings
 /.build/
+/App/.build/
 xcuserdata/
 /dist/
 
@@ -15,9 +16,7 @@ xcuserdata/
 /vite.config.ts.timestamp-*
 npm-debug.log*
 
-# Python bytecode and Markdown lint cache
-__pycache__/
-*.py[cod]
+# Markdown lint cache
 .rumdl_cache/
 
 # macOS metadata
