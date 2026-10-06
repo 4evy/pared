@@ -3,6 +3,7 @@ import Foundation
 // Command paths are also used in diagnostics and group help
 enum Command: String, CaseIterable {
   case features, status, enable, disable, reset, apply
+  case wizard
   case profile = "profile show"
   case openProfile = "profile open"
   case profileStatus = "profile status"
@@ -16,7 +17,7 @@ enum Command: String, CaseIterable {
     allCases.filter { $0.rawValue.hasPrefix(group + " ") }
   }
 
-  static func parse(_ arguments: inout ArraySlice<String>) throws -> Command {
+  static func parse(_ arguments: inout ArraySlice<String>) throws(CLIError) -> Command {
     guard let first = arguments.popFirst() else { throw CLIError("Expected a command") }
     let children = subcommands(for: first)
     let path: String
@@ -50,6 +51,8 @@ enum Command: String, CaseIterable {
 
   var definition: Definition {
     switch self {
+    case .wizard:
+      return Definition(summary: "Open the guided installation and Apple Intelligence setup menu")
     case .features:
       return Definition(
         summary: "List feature names and their preference, profile, and model controls")

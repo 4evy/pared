@@ -84,20 +84,22 @@ func recoverModels(
   // Construct all subscriptions first so an unavailable initializer cannot
   // leave only some requests sent; Apple's objects provide the XPC encoding
   let subscriptions = try recoveries.map {
-    recovery -> (subscriber: String, name: String, object: NSObject) in
+    recovery -> (subscriber: String, name: String, object: ParedAssetSubscription) in
+    var error: NSError?
     guard
       let subscription = ParedSubscription(
         recovery.name, (recovery.assetSetUsages ?? [:]).mapValues { $0.mapValues(\.rawValue) },
-        recovery.usageAliases)
+        recovery.usageAliases, &error)
     else {
-      throw CLIError("Required subscription initializer is unavailable")
+      if let error { throw error }
+      throw CLIError("Cannot construct download subscription; no request sent")
     }
     return (recovery.subscriber, recovery.name, subscription)
   }
   for (subscriber, entries) in Dictionary(grouping: subscriptions, by: \.subscriber) {
-    // ResetAssetSets can leave subscriptions intact, making Subscribe a no-op.
-    // Unsubscribe first to request a fresh download; if Subscribe then fails,
-    // these subscriptions remain absent
+    // Subscribe skips unchanged requests, and ResetAssetSets can leave those
+    // requests intact; unsubscribe first to trigger fresh configuration
+    // If Subscribe then fails, these subscriptions remain absent
     let refresh = unsubscribeModelRequests(entries.map(\.name), subscriber: subscriber)
     guard refresh == .success else { return refresh }
     let result = modelOperation(

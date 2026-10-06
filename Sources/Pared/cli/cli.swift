@@ -5,6 +5,8 @@ private let allFeaturesArgument = "all"
 private let usage = """
   Usage: pared <command> [subcommand] [features...] [--policy FILE] [--dry-run]
 
+    gui [--policy FILE]            Open the macOS app
+
   \(Command.help)
 
   Policy: ~/Library/Application Support/pared/policy.json
@@ -32,8 +34,8 @@ private struct Status: Encodable {
   let modelAvailabilityOnly: Bool
 }
 
-func runCLI(_ arguments: [String]) throws -> ExitStatus {
-  if arguments.isEmpty || CLIOption.isHelp(arguments[...]) {
+func runCLI(_ arguments: ArraySlice<String>) throws -> ExitStatus {
+  if arguments.isEmpty || CLIOption.isHelp(arguments) {
     print(usage)
     return .success
   }
@@ -48,8 +50,9 @@ func runCLI(_ arguments: [String]) throws -> ExitStatus {
       return .success
     }
   }
-  var args = arguments[...]
+  var args = arguments
   let command = try Command.parse(&args)
+  if command == .wizard { return try runWizard(args) }
   if CLIOption.isHelp(args) {
     print(usage)
     return .success
@@ -154,34 +157,42 @@ func runCLI(_ arguments: [String]) throws -> ExitStatus {
       FileHandle.standardOutput.write(try jsonData(policy))
       return .success
     }
-    if url.resolvingSymlinksInPath().path.hasPrefix("/nix/store/") {
-      throw CLIError("This policy is managed by Nix; change programs.pared.features and reactivate")
-    }
-    let directory = url.deletingLastPathComponent()
-    let profileURL = directory.appendingPathComponent(Artifacts.profileFilename)
-    let declarationsURL = directory.appendingPathComponent(Artifacts.declarationsFilename)
-    guard
-      ![profileURL, declarationsURL].contains(where: {
-        $0.standardizedFileURL.resolvingSymlinksInPath()
-          == url.standardizedFileURL.resolvingSymlinksInPath()
-      })
-    else {
-      throw CLIError("The policy path conflicts with a generated artifact; choose another filename")
-    }
-    try policy.save(url)
-    try profileData(policy: policy, catalog: catalog).write(to: profileURL, options: .atomic)
-    try declarationData(policy: policy, catalog: catalog).write(
-      to: declarationsURL, options: .atomic)
-    report("Saved policy: \(url.path)")
-    report("Install the updated profile for managed controls: \(profileURL.path)")
-    report("MDM declarations: \(declarationsURL.path)")
-    try applyPreferences(
-      policy: policy, catalog: catalog, names: selected, reset: command == .reset)
-    report(
-      "Relaunch affected apps or log in again. Models may need downloading. Nix-managed settings must also be changed in Nix."
-    )
-  case .features, .check:
+    try persistPolicyChanges(
+      policy: policy, url: url, catalog: catalog, names: selected, reset: command == .reset)
+  case .features, .check, .wizard:
     preconditionFailure("Handled before policy loading")
   }
   return .success
+}
+
+func persistPolicyChanges(
+  policy: Policy, url: URL, catalog: Catalog, names: [String], reset: Bool
+) throws {
+  if url.resolvingSymlinksInPath().path.hasPrefix("/nix/store/") {
+    throw CLIError("This policy is managed by Nix; change programs.pared.features and reactivate")
+  }
+  let directory = url.deletingLastPathComponent()
+  let profileURL = directory.appendingPathComponent(Artifacts.profileFilename)
+  let declarationsURL = directory.appendingPathComponent(Artifacts.declarationsFilename)
+  // The two generated destinations need no heap-backed collection
+  let generatedURLs: InlineArray<2, URL> = [profileURL, declarationsURL]
+  let policyURL = url.standardizedFileURL.resolvingSymlinksInPath()
+  guard
+    !generatedURLs.indices.contains(where: {
+      generatedURLs[$0].standardizedFileURL.resolvingSymlinksInPath() == policyURL
+    })
+  else {
+    throw CLIError("The policy path conflicts with a generated artifact; choose another filename")
+  }
+  try policy.save(url)
+  try profileData(policy: policy, catalog: catalog).write(to: profileURL, options: .atomic)
+  try declarationData(policy: policy, catalog: catalog).write(
+    to: declarationsURL, options: .atomic)
+  report("Saved policy: \(url.path)")
+  report("Install the updated profile for managed controls: \(profileURL.path)")
+  report("MDM declarations: \(declarationsURL.path)")
+  try applyPreferences(policy: policy, catalog: catalog, names: names, reset: reset)
+  report(
+    "Relaunch affected apps or log in again. Models may need downloading. Nix-managed settings must also be changed in Nix."
+  )
 }

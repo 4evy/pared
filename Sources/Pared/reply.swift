@@ -1,11 +1,11 @@
 import Foundation
-import os
+import Synchronization
 
-// The reply and transport error can arrive on different XPC queues.
-// Synchronize with the waiting thread and accept only the first result
+// XPC callbacks can arrive on different queues; keep the result and lock inline
+// and accept only the first reply before waking the waiting thread
 final class Reply<Value: Sendable>: Sendable {
   private let done = DispatchSemaphore(value: 0)
-  private let result = OSAllocatedUnfairLock<Value?>(initialState: nil)
+  private let result = Mutex<Value?>(nil)
 
   func finish(_ value: Value, message: String? = nil) {
     result.withLock { result in

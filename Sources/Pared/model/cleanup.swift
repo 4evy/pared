@@ -74,6 +74,8 @@ func modelOperation(
 ) -> ExitStatus {
   // Apple's interface supplies the oneway method signature and allowed object
   // classes; a plain Swift protocol produces an incompatible XPC message
+  // Asset removal runs in the daemon; calling UAFAutoAssetManager's removal
+  // helpers directly as a non-root process can return nil without removing
   guard
     let interface = UnifiedAssets.serviceInterface
   else {
@@ -94,6 +96,11 @@ func modelOperation(
     report("Cannot create subscription service proxy")
     return .unavailable
   }
-  ParedPerformOperation(proxy, operation.configuration) { handler($0 as NSError?, reply) }
+  var error: NSError?
+  guard operation.send(to: proxy, completion: { handler($0 as NSError?, reply) }, error: &error)
+  else {
+    report("Cannot send model request: \(String(describing: error))")
+    return .unavailable
+  }
   return reply.wait()
 }

@@ -1,0 +1,4 @@
+BasedOnStyle: LLVM
+ColumnLimit: 80
+ReflowComments: Always
+InsertBraces: true

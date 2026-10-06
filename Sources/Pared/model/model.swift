@@ -1,14 +1,21 @@
 import AssetBridge
 import Foundation
 
-struct DownloadedAsset: Codable {
+struct DownloadedAsset: Encodable {
   let assetID: String
   let assetType: String
   let assetSpecifier: String
   let assetVersion: String
+
+  init(_ asset: ParedDownloadedAsset) {
+    assetID = asset.assetID
+    assetType = asset.assetType
+    assetSpecifier = asset.assetSpecifier
+    assetVersion = asset.assetVersion
+  }
 }
 
-struct LocalDownloadStatus: Codable {
+struct LocalDownloadStatus: Encodable {
   let latestDownloadedAtomicInstance: String?
   let downloadedAssets: [DownloadedAsset]
   let configuredAssetEntries: Int
@@ -17,6 +24,16 @@ struct LocalDownloadStatus: Codable {
   let downloadedNetworkBytes: Int64
   let downloadedFilesystemBytes: Int64
   let vendingAtomicInstanceForConfiguredEntries: Bool
+
+  init(_ status: ParedLocalDownloadStatus) {
+    latestDownloadedAtomicInstance = status.latestDownloadedAtomicInstance
+    downloadedAssets = status.downloadedAssets.map(DownloadedAsset.init)
+    configuredAssetEntries = Int(status.configuredAssetEntries)
+    latestDowloadedAtomicInstanceEntries = Int(status.latestDowloadedAtomicInstanceEntries)
+    downloadedNetworkBytes = status.downloadedNetworkBytes
+    downloadedFilesystemBytes = status.downloadedFilesystemBytes
+    vendingAtomicInstanceForConfiguredEntries = status.vendingAtomicInstanceForConfiguredEntries
+  }
 }
 
 struct ModelStatus: Encodable {
@@ -28,7 +45,7 @@ struct ModelStatus: Encodable {
   let inventoryError: String?
 }
 
-// Retain query errors so callers can distinguish unknown status from absence.
+// Retain query errors so callers can distinguish unknown status from absence
 // UAF's convenience status method discards the underlying error
 func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] {
   guard
@@ -49,8 +66,7 @@ func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] 
         throw CLIError("Model status returned no result")
       }
       if let error { throw error }
-      snapshot = try JSONDecoder().decode(
-        LocalDownloadStatus.self, from: JSONSerialization.data(withJSONObject: status))
+      snapshot = LocalDownloadStatus(status)
     } catch { queryError = String(describing: error) }
 
     let type = catalog.assetTypes[target]!

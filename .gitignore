@@ -1,6 +1,7 @@
 # SwiftPM build output and Xcode user settings
 /.build/
 xcuserdata/
+/dist/
 
 # Nix build output links
 /result

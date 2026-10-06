@@ -12,7 +12,7 @@ struct Policy: Codable {
 
   func state(_ name: String) -> FeatureState { features[name, default: defaultState] }
 
-  func validate(_ catalog: Catalog) throws {
+  func validate(_ catalog: Catalog) throws(CLIError) {
     guard schemaVersion == Self.supportedSchemaVersion else {
       throw CLIError("Unsupported policy schema version: \(schemaVersion)")
     }

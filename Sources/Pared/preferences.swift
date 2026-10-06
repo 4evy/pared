@@ -28,7 +28,7 @@ func preferenceStatus(_ preference: Preference) -> PreferenceStatus {
 }
 
 func validateDownloadPreferences(policy: Policy, catalog: Catalog, names: [String])
-  throws
+  throws(CLIError)
 {
   // Reject downloads that conflict with enforced preferences.
   // Policy edits must still succeed so the user can generate a replacement
