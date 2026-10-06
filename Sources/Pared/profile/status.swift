@@ -59,11 +59,7 @@ private struct DeviceProfileListReply: Sendable {
     }
     // Retain only identity and count; discard unrelated profile and payload
     // fields, including installation-source userInfo
-    var profiles: [InstalledProfile] = []
-    for entry in metadata {
-      profiles.append(try InstalledProfile(metadata: entry))
-    }
-    self.profiles = profiles
+    profiles = try metadata.map(InstalledProfile.init)
   }
 }
 
@@ -77,7 +73,7 @@ private enum DeviceProfiles {
   static let listRequest = ["Command": "GetProfileList"]
 }
 
-private struct ProfileInstallationStatus: Encodable {
+struct ProfileInstallationStatus: Codable {
   let identifier: String
   let expectedUUID: String
   let installed: Bool

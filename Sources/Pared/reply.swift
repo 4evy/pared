@@ -4,21 +4,36 @@ import Synchronization
 // XPC callbacks can arrive on different queues; keep the result and lock inline
 // and accept only the first reply before waking the waiting thread
 final class Reply<Value: Sendable>: Sendable {
+  private enum State {
+    case pending
+    case finished(Value)
+    case timedOut
+  }
+
   private let done = DispatchSemaphore(value: 0)
-  private let result = Mutex<Value?>(nil)
+  private let result = Mutex<State>(.pending)
 
   func finish(_ value: Value, message: String? = nil) {
     result.withLock { result in
-      guard result == nil else { return }
-      result = value
+      guard case .pending = result else { return }
+      result = .finished(value)
       if let message { report(message) }
       done.signal()
     }
   }
 
   func wait(timeout: TimeInterval) -> Value? {
-    guard done.wait(timeout: .now() + timeout) == .success else { return nil }
-    return result.withLock { $0 }
+    _ = done.wait(timeout: .now() + timeout)
+    return result.withLock { result in
+      switch result {
+      case .finished(let value): return value
+      case .pending:
+        // A late callback must not report success after an unknown outcome
+        result = .timedOut
+        return nil
+      case .timedOut: return nil
+      }
+    }
   }
 }
 

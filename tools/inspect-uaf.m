@@ -1,47 +1,26 @@
-// Repeat private-API inspection after an OS update, using the current catalog
-// Read configuration/status and securely archive native subscription objects
-// No subscription-service connection or reset/subscribe/unsubscribe is sent
-// Status reads can take short-lived MobileAsset locks and emit system logs
+// Read configuration and status, and check subscription serialization locally
+// No requests are sent to the subscription daemon. Status reads briefly lock
+// assets and may produce system logs
 //
 // clang-format off
 // Build and run from the repository root:
 // xcrun clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation \
-//   -ISources/AssetBridge/include Sources/AssetBridge/AssetBridge.m \
+//   -ISources/AssetBridge/include Sources/AssetBridge/*.m \
 //   tools/inspect-uaf.m -o /tmp/inspect-uaf
 // /tmp/inspect-uaf Sources/Pared/Resources/catalog.json > /tmp/uaf-report.json
 // clang-format on
 //
-// Exit 0 means report collection succeeded, not that every query succeeded
-// Inspect bridgeInterfaceAvailable, per-set errors, and validation/archive
-// fields; setup failures exit nonzero and raw local reports are not fixtures
-#import "AssetBridge.h"
+// Exit 0 means the report was collected; individual queries can still fail
+// Check the interface, validation, archive, and per-set error fields
+#import "../Sources/AssetBridge/BridgeInternal.h"
+#import <mach-o/dyld.h>
+#import <mach-o/loader.h>
 #import <objc/runtime.h>
 
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-@protocol ParedInspectableSubscription <NSObject, NSSecureCoding>
-- (instancetype)initWithName:(NSString *)name
-                   assetSets:(NSDictionary *)sets
-                usageAliases:(NSDictionary *)aliases;
-- (NSString *)name;
-- (NSDictionary *)assetSets;
-- (NSDictionary *)usageAliases;
-- (NSDate *)expiration;
-@end
-
-static BOOL ObjectGetterAvailable(id object, SEL selector) {
-  Method method = class_getInstanceMethod(object_getClass(object), selector);
-  if (!method) {
-    return NO;
-  }
-  NSMethodSignature *signature =
-      [NSMethodSignature signatureWithObjCTypes:method_getTypeEncoding(method)];
-  return !strcmp(signature.methodReturnType, "@") &&
-         signature.numberOfArguments == 2;
-}
 
 static NSDictionary *ErrorDetails(NSError *error) {
   return error ? @{
@@ -68,6 +47,88 @@ static NSDictionary *Methods(NSString *name) {
     free(methods);
   }
   return result;
+}
+
+// Remove the image slide so implementation addresses stay useful across runs
+// Looking up a method does not call it
+static NSDictionary *Implementations(NSString *name) {
+  Class type = NSClassFromString(name);
+  NSMutableDictionary *result = [NSMutableDictionary dictionary];
+  for (int meta = 0; meta < 2; meta++) {
+    unsigned int count = 0;
+    Method *methods =
+        class_copyMethodList(meta ? object_getClass(type) : type, &count);
+    for (unsigned int i = 0; i < count; i++) {
+      const void *implementation =
+          (const void *)method_getImplementation(methods[i]);
+      Dl_info info;
+      if (!dladdr(implementation, &info) || !info.dli_fname) {
+        continue;
+      }
+      for (uint32_t image = 0; image < _dyld_image_count(); image++) {
+        if (strcmp(_dyld_get_image_name(image), info.dli_fname)) {
+          continue;
+        }
+        uintptr_t address =
+            (uintptr_t)implementation - _dyld_get_image_vmaddr_slide(image);
+        NSString *key =
+            [NSString stringWithFormat:@"%c%s", meta ? '+' : '-',
+                                       sel_getName(method_getName(methods[i]))];
+        result[key] = @{
+          @"image" : @(info.dli_fname),
+          @"address" :
+              [NSString stringWithFormat:@"0x%llx", (unsigned long long)address]
+        };
+        break;
+      }
+    }
+    free(methods);
+  }
+  return result;
+}
+
+// Properties can name classes that method signatures omit; collection contents
+// still need their own checks
+static NSDictionary *Properties(NSString *name) {
+  unsigned int count = 0;
+  objc_property_t *properties =
+      class_copyPropertyList(NSClassFromString(name), &count);
+  NSMutableDictionary *result = [NSMutableDictionary dictionary];
+  for (unsigned int i = 0; i < count; i++) {
+    result[@(property_getName(properties[i]))] =
+        @(property_getAttributes(properties[i]));
+  }
+  free(properties);
+  return result;
+}
+
+// Record which framework binaries are loaded; selectors alone cannot identify
+// an implementation
+static NSDictionary *FrameworkImages(void) {
+  NSMutableDictionary *images = [NSMutableDictionary dictionary];
+  for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+    const char *path = _dyld_get_image_name(i);
+    if (!strstr(path, "/UnifiedAssetFramework.framework/") &&
+        !strstr(path, "/MobileAsset.framework/")) {
+      continue;
+    }
+    const struct mach_header *header = _dyld_get_image_header(i);
+    if (header->magic != MH_MAGIC_64) {
+      continue;
+    }
+    const struct load_command *command =
+        (const void *)((const struct mach_header_64 *)header + 1);
+    for (uint32_t j = 0; j < header->ncmds; j++) {
+      if (command->cmd == LC_UUID) {
+        const struct uuid_command *uuid = (const void *)command;
+        images[@(path)] =
+            [[NSUUID alloc] initWithUUIDBytes:uuid->uuid].UUIDString;
+        break;
+      }
+      command = (const void *)((const char *)command + command->cmdsize);
+    }
+  }
+  return images;
 }
 
 static NSArray<NSString *> *ClassNames(NSSet *classes) {
@@ -102,17 +163,50 @@ static NSDictionary *Snapshot(ParedLocalDownloadStatus *status) {
   };
 }
 
-static NSDictionary *InspectMethods(void) {
-  NSMutableDictionary *methods = [NSMutableDictionary dictionary];
-  for (NSString *name in @[
-         @"UAFConfigurationManager", @"UAFAssetSetConfiguration",
-         @"UAFAssetSetSubscription", @"UAFXPCProxyServiceInterface",
-         @"UAFAutoAssetManager", @"MAAutoAssetSetStatus",
-         @"MAAutoAssetSetAtomicEntry", @"MAAutoAssetSelector"
-       ]) {
-    methods[name] = Methods(name);
+// Collect each class's methods, implementations, and properties in one place
+typedef NS_OPTIONS(NSUInteger, ParedClassInspection) {
+  ParedClassMethods = 1 << 0,
+  ParedClassImplementations = 1 << 1,
+  ParedClassProperties = 1 << 2,
+  ParedClassAll = ParedClassMethods | ParedClassImplementations |
+      ParedClassProperties
+};
+
+static const struct {
+  __unsafe_unretained NSString *name;
+  ParedClassInspection observations;
+} kParedInspectedClasses[] = {
+    {@"UAFConfigurationManager", ParedClassMethods | ParedClassImplementations},
+    {@"UAFAssetSetConfiguration", ParedClassAll},
+    {@"UAFAssetConfiguration", ParedClassMethods | ParedClassImplementations},
+    {@"UAFAssetExpansion", ParedClassMethods | ParedClassImplementations},
+    {@"UAFCommonUtilities", ParedClassMethods | ParedClassImplementations},
+    {@"UAFAssetSetSubscription", ParedClassAll},
+    {@"UAFXPCProxyServiceInterface",
+     ParedClassMethods | ParedClassImplementations},
+    {@"UAFXPCService", ParedClassImplementations},
+    {@"UAFAssetSetManager", ParedClassImplementations},
+    {@"UAFSubscriptionStoreManager", ParedClassImplementations},
+    {@"UAFUserManager", ParedClassImplementations},
+    {@"UAFAutoAssetManager", ParedClassMethods | ParedClassImplementations},
+    {@"MAAutoAssetSet", ParedClassImplementations},
+    {@"MAAutoAssetSetStatus", ParedClassAll},
+    {@"MAAutoAssetSetAtomicEntry", ParedClassAll},
+    {@"MAAutoAssetSetEntry", ParedClassImplementations | ParedClassProperties},
+    {@"MAAutoAssetSelector", ParedClassAll}};
+
+static NSDictionary *InspectClasses(ParedClassInspection observation,
+                                    NSDictionary *(*inspect)(NSString *)) {
+  NSMutableDictionary *result = [NSMutableDictionary dictionary];
+  for (size_t i = 0;
+       i < sizeof(kParedInspectedClasses) / sizeof(kParedInspectedClasses[0]);
+       i++) {
+    if (kParedInspectedClasses[i].observations & observation) {
+      NSString *name = kParedInspectedClasses[i].name;
+      result[name] = inspect(name);
+    }
   }
-  return methods;
+  return [result copy];
 }
 
 static NSDictionary *InspectAssetSets(NSDictionary *types) {
@@ -120,10 +214,25 @@ static NSDictionary *InspectAssetSets(NSDictionary *types) {
   for (NSString *name in types) {
     NSError *error = nil;
     ParedLocalDownloadStatus *status = ParedLocalStatus(name, &error);
+    NSArray<NSString *> *usages = ParedUsageTypesForSet(name);
+    // The bridge checked the manager's lookup methods. Check the restriction
+    // getter too; nil means unrestricted
+    id<ParedConfigurationManagerAPI> manager =
+        usages ? [(id<ParedConfigurationManagerAPI>)NSClassFromString(
+                     @"UAFConfigurationManager") defaultManager]
+               : nil;
+    id<ParedAssetSetConfigurationAPI> configuration =
+        [manager getAssetSet:name];
+    BOOL restrictionsAvailable =
+        ParedHasMethod(configuration, @selector(usageValues),
+                       @protocol(ParedAssetSetUsageAPI));
+    id restrictions = restrictionsAvailable ? [configuration usageValues] : nil;
     sets[name] = @{
       @"catalogType" : types[name],
       @"runtimeType" : ParedAssetTypeForSet(name) ?: NSNull.null,
-      @"usageTypes" : ParedUsageTypesForSet(name) ?: (id)NSNull.null,
+      @"usageTypes" : usages ?: (id)NSNull.null,
+      @"usageValuesAvailable" : @(restrictionsAvailable),
+      @"usageValues" : restrictions ?: NSNull.null,
       @"snapshot" : status ? Snapshot(status) : (id)NSNull.null,
       @"error" : ErrorDetails(error)
     };
@@ -145,26 +254,22 @@ static id SecureArchiveRoundTrip(id<NSObject, NSSecureCoding> object,
                  : nil;
 }
 
-// Inspects the transport object locally without connecting to the daemon
+// Inspect subscriptions locally without connecting to the daemon
 static void InspectNativeSubscription(ParedAssetSubscription *validated,
                                       NSDictionary *recovery,
                                       NSMutableDictionary *details) {
   NSError *error = nil;
   NSDictionary *usages = recovery[@"assetSetUsages"] ?: @{};
   NSDictionary *aliases = recovery[@"usageAliases"];
-  // The bridge verified this initializer before the diagnostic call
+  // The bridge already checked this initializer's signature
   Class type = NSClassFromString(@"UAFAssetSetSubscription");
-  id<ParedInspectableSubscription> native =
-      [(id<ParedInspectableSubscription>)[type alloc]
-          initWithName:recovery[@"name"]
-             assetSets:usages
-          usageAliases:aliases];
-  // Inspect ownership without mutating caller inputs or sending requests
+  id<ParedSubscriptionAPI> native =
+      [(id<ParedSubscriptionAPI>)[type alloc] initWithName:recovery[@"name"]
+                                                 assetSets:usages
+                                              usageAliases:aliases];
+  // Compare references to see which inputs Apple retained
   BOOL ownershipAvailable =
-      ObjectGetterAvailable(native, @selector(name)) &&
-      ObjectGetterAvailable(native, @selector(assetSets)) &&
-      ObjectGetterAvailable(native, @selector(usageAliases)) &&
-      ObjectGetterAvailable(native, @selector(expiration));
+      ParedHasDeclaredMethods(native, @protocol(ParedSubscriptionValuesAPI));
   details[@"nativeInputOwnershipAvailable"] = @(ownershipAvailable);
   if (ownershipAvailable) {
     details[@"nativeRetainsName"] = @([native name] == recovery[@"name"]);
@@ -172,16 +277,14 @@ static void InspectNativeSubscription(ParedAssetSubscription *validated,
     details[@"nativeRetainsUsageAliases"] = @([native usageAliases] == aliases);
     details[@"nativeHasExpiration"] = @([native expiration] != nil);
   }
-  // Read the opaque wrapper only for diagnostics; callers use the public
-  // typed operations, which unwrap this value at the XPC boundary
+  // Read the wrapped object for this diagnostic only; callers use the bridge's
+  // public operations
   Ivar nativeIvar =
       class_getInstanceVariable(ParedAssetSubscription.class, "_native");
-  id<ParedInspectableSubscription> bridgeNative =
+  id<ParedSubscriptionAPI> bridgeNative =
       nativeIvar ? object_getIvar(validated, nativeIvar) : nil;
-  BOOL snapshotAvailable =
-      ObjectGetterAvailable(bridgeNative, @selector(name)) &&
-      ObjectGetterAvailable(bridgeNative, @selector(assetSets)) &&
-      ObjectGetterAvailable(bridgeNative, @selector(usageAliases));
+  BOOL snapshotAvailable = ParedHasDeclaredMethods(
+      bridgeNative, @protocol(ParedSubscriptionValuesAPI));
   details[@"bridgeInputSnapshotAvailable"] = @(snapshotAvailable);
   if (snapshotAvailable) {
     NSDictionary *snapshotSets = [bridgeNative assetSets];
@@ -288,7 +391,11 @@ int main(int argc, const char *argv[]) {
 #else
     report[@"architecture"] = @"other";
 #endif
-    report[@"methods"] = InspectMethods();
+    report[@"methods"] = InspectClasses(ParedClassMethods, Methods);
+    report[@"implementations"] =
+        InspectClasses(ParedClassImplementations, Implementations);
+    report[@"properties"] = InspectClasses(ParedClassProperties, Properties);
+    report[@"frameworkImages"] = FrameworkImages();
     NSXPCInterface *interface = ParedServiceInterface();
     report[@"bridgeInterfaceAvailable"] = @(interface != nil);
     if (interface) {
@@ -321,8 +428,7 @@ int main(int argc, const char *argv[]) {
     }
     [NSFileHandle.fileHandleWithStandardOutput writeData:data];
     puts("");
-    // Query errors are observations in the report; only probe setup failures
-    // prevent collecting evidence about partially available private interfaces
+    // Keep query errors in the report; only setup failures prevent collection
     return 0;
   }
 }

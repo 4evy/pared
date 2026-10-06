@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Immutable, validated copies of downloaded asset values
+/// Copied identifiers for a downloaded asset
 @interface ParedDownloadedAsset : NSObject
 @property(nonatomic, readonly, copy) NSString *assetID;
 @property(nonatomic, readonly, copy) NSString *assetType;
@@ -12,14 +12,14 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 @end
 
-/// A local snapshot whose byte counts do not measure reclaimable disk space
+/// A local snapshot; its byte counts do not measure reclaimable disk space
 @interface ParedLocalDownloadStatus : NSObject
 @property(nonatomic, readonly, copy, nullable)
     NSString *latestDownloadedAtomicInstance;
 @property(nonatomic, readonly, copy)
     NSArray<ParedDownloadedAsset *> *downloadedAssets;
 @property(nonatomic, readonly) NSUInteger configuredAssetEntries;
-// Preserve Apple's misspelled selector in the existing output schema
+// Keep Apple's spelling for compatibility with existing output
 @property(nonatomic, readonly) NSUInteger latestDowloadedAtomicInstanceEntries;
 @property(nonatomic, readonly) int64_t downloadedNetworkBytes;
 @property(nonatomic, readonly) int64_t downloadedFilesystemBytes;
@@ -28,64 +28,79 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 @end
 
-/// Owns a validated native subscription for transport through Apple's XPC
-/// interface
+/// A validated subscription ready to send through XPC
 @interface ParedAssetSubscription : NSObject
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 @end
 
-/// Constructs a subscription validated against live configuration
-/// Accepts only nonempty scopes with ENABLED usage values and snapshots caller
-/// strings and nested dictionaries before validation
-/// Requests no expiration; unsubscribe explicitly to remove the request
+/// Creates a subscription using the current configuration
+///
+/// Requires a nonempty name and ENABLED usages or aliases. Copies caller inputs
+/// and checks the native object kept those values without an expiration
+///
+/// Unsubscribe explicitly to remove the request. The daemon resolves aliases
+/// again when processing it
 FOUNDATION_EXPORT ParedAssetSubscription *_Nullable ParedSubscription(
     NSString *name,
     NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *>
         *assetSetUsages,
     NSDictionary<NSString *, NSString *> *usageAliases,
     NSError *_Nullable *_Nullable error);
-/// Returns nil for query or lock-release errors, even when Apple returns status
+/// Returns a copied status, or nil with an error if the query or validation
+/// fails A lock-release error also fails the query, even if Apple returned
+/// status
+///
+/// The result holds no lock and does not keep asset files available
 FOUNDATION_EXPORT ParedLocalDownloadStatus *_Nullable ParedLocalStatus(
     NSString *assetSet, NSError *_Nullable *_Nullable error);
 
-/// Sends a reset for explicit nonempty asset set names
-/// Returns NO without sending if the bridge cannot construct a supported
-/// request The proxy must come from a connection configured with
-/// ParedServiceInterface Completion runs on the connection's reply queue;
-/// success does not guarantee that every payload was deleted
+/// Resets the named asset sets for all users, leaving subscriptions intact
+/// Use a proxy from a connection configured with ParedServiceInterface
+///
+/// Returns NO with an error without sending or calling completion if the
+/// request is invalid. YES means it was handed to the proxy; completion runs on
+/// the connection's reply queue
+///
+/// A successful reply does not prove every payload was deleted. A timeout or
+/// transport error can follow daemon effects; check the outcome before retrying
 FOUNDATION_EXPORT BOOL
 ParedPerformReset(NSObject *proxy, NSArray<NSString *> *assetSets,
                   void (^completion)(NSError *_Nullable error),
                   NSError *_Nullable *_Nullable error);
-/// Sends validated subscriptions and acknowledges configuration, not downloads
-/// Apple compares names, explicit usages, aliases, and expiration; unchanged
-/// subscriptions succeed without triggering a new configuration
-/// Uses the same proxy and completion queue contract as ParedPerformReset
+/// Subscribes validated requests; duplicate names are rejected
+///
+/// A successful reply does not promise a download. Identical subscriptions and
+/// unchanged demand across subscribers may skip asset configuration, and some
+/// download errors are only logged
+///
+/// Configuration changes can survive a failed database write
+/// Uses the proxy, return value, and completion behavior of ParedPerformReset
 FOUNDATION_EXPORT BOOL
 ParedPerformSubscribe(NSObject *proxy, NSString *subscriber,
                       NSArray<ParedAssetSubscription *> *subscriptions,
                       void (^completion)(NSError *_Nullable error),
                       NSError *_Nullable *_Nullable error);
-/// Removes subscription names for a subscriber, including already absent names
-/// The reply does not prove assets were deleted; other subscribers can continue
-/// requesting the same assets
-/// Uses the same proxy and completion queue contract as ParedPerformReset
+/// Removes named requests for a subscriber, including already absent names
+/// Other subscribers can keep the same assets requested. Unreadable stored
+/// requests may be skipped as though absent
+///
+/// Uses the proxy, return value, and completion behavior of ParedPerformReset
 FOUNDATION_EXPORT BOOL ParedPerformUnsubscribe(
     NSObject *proxy, NSString *subscriber, NSArray<NSString *> *names,
     void (^completion)(NSError *_Nullable error),
     NSError *_Nullable *_Nullable error);
-/// Returns Apple's interface only when its signature and allowlists are
-/// supported
+/// Returns Apple's XPC interface, or nil if its signatures or allowed classes
+/// are incompatible
 FOUNDATION_EXPORT NSXPCInterface *_Nullable ParedServiceInterface(void);
-/// Returns a copied asset type from live configuration, or nil if unavailable
+/// Returns a copied asset type, or nil if unavailable
 FOUNDATION_EXPORT NSString *_Nullable ParedAssetTypeForSet(NSString *assetSet);
-/// Returns copied usage names from live configuration, or nil if unavailable
+/// Returns copied usage names, or nil if unavailable
 FOUNDATION_EXPORT
 NSArray<NSString *> *_Nullable ParedUsageTypesForSet(NSString *assetSet);
-/// Returns a deep immutable copy of an alias expansion, or nil if unavailable
-/// Apple can resolve deprecated alias values; expansions may include
-/// dependencies
+/// Returns a copied alias expansion, or nil if unavailable
+/// Expansions may include dependencies in other asset sets and deprecated
+/// values
 FOUNDATION_EXPORT
 NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *>
     *_Nullable ParedResolveUsageAlias(NSString *alias, NSString *value);
