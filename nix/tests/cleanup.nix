@@ -16,9 +16,9 @@ let
 in
 pkgs.runCommand "pared-cleanup-regression"
   {
-    nativeBuildInputs = [ pkgs.python3 ];
+    nativeBuildInputs = [ pkgs.swift ];
   }
   ''
-    python3 ${../../Tests/test_activation.py} ${cleanup}
+    swift ${../../Tests/test_activation.swift} ${cleanup}
     touch "$out"
   ''

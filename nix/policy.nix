@@ -85,5 +85,6 @@ assert lib.asserts.assertMsg (builtins.all validState (
     lib.lists.optional (declarationGroups ? intelligence) (declaration "intelligence" "intelligence")
     ++ lib.lists.optional (declarationGroups ? external) (
       declaration "external" "external-intelligence"
-    );
+    )
+    ++ lib.lists.optional (declarationGroups ? siri) (declaration "siri" "siri");
 }
