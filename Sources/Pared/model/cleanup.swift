@@ -1,19 +1,6 @@
 import AssetBridge
 import Foundation
 
-// Reject requests if Apple's current asset types differ from the catalog
-func validate(_ targets: [String], assetTypes: [String: String]) -> Bool {
-  for name in targets {
-    guard let actual = ParedAssetTypeForSet(name),
-      actual == assetTypes[name]
-    else {
-      report("Asset type does not match the catalog for \(name); no request sent")
-      return false
-    }
-  }
-  return true
-}
-
 func checkService(catalog: Catalog) -> ExitStatus {
   resetModels([UnifiedAssets.checkTarget], catalog: catalog)
 }
@@ -28,8 +15,12 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     return .unavailable
   }
   let check = targets == [UnifiedAssets.checkTarget]
-  guard validate(check ? catalog.assetTypes.keys.sorted() : targets, assetTypes: catalog.assetTypes)
-  else {
+  let assets: [ModelAssetSet]
+  do {
+    assets = try catalog.modelAssets(check ? catalog.assetTypes.keys.sorted() : targets)
+    for asset in assets { try asset.validateConfiguration() }
+  } catch {
+    report(String(describing: error))
     return .unavailable
   }
   if !check {
@@ -46,7 +37,7 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     guard result == .success else { return result }
   }
   // Never omit AssetSets: the server interprets nil as every asset set
-  return modelOperation(.reset(assetSets: targets)) { error, reply in
+  let result = modelOperation(.reset(assetSets: targets)) { error, reply in
     if check {
       let missing = error?.userInfo[UnifiedAssets.checkTarget] as? NSError
       let reachedHandler =
@@ -59,14 +50,64 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
           ? "Reached reset handler with a nonexistent set; no real assets selected"
           : "Could not reach the reset handler: \(String(describing: error))")
     } else if let error {
+      if removalHasLocks(error) {
+        report(
+          "macOS reports models still in use. Close affected apps, log out or restart, then check pared models status before retrying cleanup. Keep the matching profile installed to block downloads."
+        )
+      }
       reply.finish(
         .failure, message: "Reset reported an error; partial removal is possible: \(error)")
     } else {
       reply.finish(
         .success,
-        message: "Reset returned successfully; check MobileAsset deletion logs and free space")
+        message: "Reset returned successfully; checking remaining model folders")
     }
   }
+  // Do not follow an unknown transport outcome with another request or label
+  // daemon acknowledgement as deletion. Inventory reads do not hold UAF locks
+  guard !check, result == .success || result == .failure else { return result }
+  let inventory = verifyModelRemoval(assets)
+  return result == .success ? inventory : result
+}
+
+func removalHasLocks(_ error: NSError, depth: Int = 0) -> Bool {
+  guard depth < 8 else { return false }
+  if let usage = error.userInfo["currentLockUsage"] as? NSDictionary, usage.count > 0 {
+    return true
+  }
+  if error.localizedFailureReason == "Could not eliminate as there are current locks" {
+    return true
+  }
+  return error.userInfo.values.contains {
+    guard let nested = $0 as? NSError else { return false }
+    return removalHasLocks(nested, depth: depth + 1)
+  }
+}
+
+func verifyModelRemoval(
+  _ assets: [ModelAssetSet], root: URL = UnifiedAssets.assetDirectory
+) -> ExitStatus {
+  var complete = true
+  for asset in assets {
+    do {
+      let paths = try modelPayloadDirectories(assetType: asset.assetType, root: root)
+      if !paths.isEmpty {
+        complete = false
+        report("\(asset.name): \(paths.count) model folder(s) remain; removal is incomplete")
+      }
+    } catch {
+      complete = false
+      report("\(asset.name): cannot verify removal: \(error)")
+    }
+  }
+  if complete {
+    report("No model folders remain for the selected sets; reclaimed disk space was not measured")
+  } else {
+    report(
+      "Check pared models status and MobileAsset deletion logs. macOS may defer deletion of files still in use; close affected apps or restart before checking again."
+    )
+  }
+  return complete ? .success : .failure
 }
 
 func modelOperation(
@@ -96,10 +137,10 @@ func modelOperation(
     report("Cannot create subscription service proxy")
     return .unavailable
   }
-  var error: NSError?
-  guard operation.send(to: proxy, completion: { handler($0 as NSError?, reply) }, error: &error)
-  else {
-    report("Cannot send model request: \(String(describing: error))")
+  do {
+    try operation.send(to: proxy) { handler($0 as NSError?, reply) }
+  } catch {
+    report("Cannot send model request: \(error)")
     return .unavailable
   }
   return reply.wait()

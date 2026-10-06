@@ -3,28 +3,42 @@
   "features": {
     "siri": {
       "description": "Siri assistant",
+      "display": {
+        "title": "Siri",
+        "symbol": "waveform",
+        "group": "Siri & Writing",
+        "note": "Voice Activation is a separate choice. Keeping Siri on retains its shared models. macOS may keep Siri background services running even when Siri is off."
+      },
       "preferences": [
         {
           "domain": "com.apple.assistant.support",
           "key": "Assistant Enabled",
+          "title": "Siri Assistant",
           "inverted": false
         },
         {
           "domain": "com.apple.Siri",
           "key": "StatusMenuVisible",
+          "title": "Siri in the Menu Bar",
           "inverted": false
         }
       ],
       "restrictions": ["allowAssistant"],
-      "declarations": [],
+      "declarations": ["siri.Enabled"],
       "assetSets": ["com.apple.modelcatalog"]
     },
     "siriVoiceTrigger": {
       "description": "Activate Siri by voice",
+      "display": {
+        "title": "Voice Activation",
+        "symbol": "mic",
+        "group": "Siri & Writing"
+      },
       "preferences": [
         {
           "domain": "com.apple.Siri",
           "key": "VoiceTriggerUserEnabled",
+          "title": "Voice Activation",
           "inverted": false
         }
       ],
@@ -34,13 +48,27 @@
     },
     "externalIntelligence": {
       "description": "External AI integrations and account sign-in",
+      "display": {
+        "title": "External Integrations",
+        "symbol": "network",
+        "group": "Siri & Writing",
+        "wizardTitle": "External AI integrations"
+      },
       "preferences": [],
-      "restrictions": ["allowExternalIntelligenceIntegrations"],
+      "restrictions": [
+        "allowExternalIntelligenceIntegrations",
+        "allowExternalIntelligenceIntegrationsSignIn"
+      ],
       "declarations": ["external.Enabled", "external.AllowSignIn"],
       "assetSets": []
     },
     "writingTools": {
       "description": "Writing Tools",
+      "display": {
+        "title": "Writing Tools",
+        "symbol": "pencil.line",
+        "group": "Siri & Writing"
+      },
       "preferences": [],
       "restrictions": ["allowWritingTools"],
       "declarations": ["intelligence.AllowWritingTools"],
@@ -48,6 +76,12 @@
     },
     "genmoji": {
       "description": "Genmoji",
+      "display": {
+        "title": "Genmoji",
+        "symbol": "face.smiling",
+        "group": "Apps",
+        "downloadPurpose": "Create custom emoji"
+      },
       "preferences": [],
       "restrictions": ["allowGenmoji"],
       "declarations": ["intelligence.AllowGenmoji"],
@@ -67,6 +101,12 @@
     },
     "imagePlayground": {
       "description": "Image Playground",
+      "display": {
+        "title": "Image Playground",
+        "symbol": "photo",
+        "group": "Apps",
+        "downloadPurpose": "Generate images in Image Playground"
+      },
       "preferences": [],
       "restrictions": ["allowImagePlayground"],
       "declarations": ["intelligence.AllowImagePlayground"],
@@ -86,6 +126,12 @@
     },
     "mailSmartReplies": {
       "description": "Mail smart replies",
+      "display": {
+        "title": "Mail Smart Replies",
+        "symbol": "envelope",
+        "group": "Apps",
+        "wizardTitle": "Mail: smart replies"
+      },
       "preferences": [],
       "restrictions": ["allowMailSmartReplies"],
       "declarations": ["intelligence.Apps.Mail.AllowSmartReplies"],
@@ -93,6 +139,12 @@
     },
     "mailSummaries": {
       "description": "Summarize messages on request in Mail",
+      "display": {
+        "title": "Mail Summaries",
+        "symbol": "envelope",
+        "group": "Apps",
+        "wizardTitle": "Mail: requested summaries"
+      },
       "preferences": [],
       "restrictions": ["allowMailSummary"],
       "declarations": ["intelligence.Apps.Mail.AllowSummary"],
@@ -100,10 +152,17 @@
     },
     "mailAutomaticSummaries": {
       "description": "Show automatic message summaries in Mail",
+      "display": {
+        "title": "Automatic Mail Summaries",
+        "symbol": "envelope",
+        "group": "Apps",
+        "wizardTitle": "Mail: automatic summaries"
+      },
       "preferences": [
         {
           "domain": "group.com.apple.mail",
           "key": "DisableAutomaticMessageSummarization",
+          "title": "Automatic Mail Summaries",
           "inverted": true
         }
       ],
@@ -113,10 +172,17 @@
     },
     "mailPersonalizedReplies": {
       "description": "Mail personalized replies",
+      "display": {
+        "title": "Personalized Mail Replies",
+        "symbol": "envelope",
+        "group": "Apps",
+        "wizardTitle": "Mail: personalized replies"
+      },
       "preferences": [
         {
           "domain": "group.com.apple.mail",
           "key": "PersonalizedSmartReplies",
+          "title": "Personalized Mail Replies",
           "inverted": false
         }
       ],
@@ -126,6 +192,12 @@
     },
     "notesSummaries": {
       "description": "Summarize transcriptions in Notes",
+      "display": {
+        "title": "Notes Summaries",
+        "symbol": "note.text",
+        "group": "Apps",
+        "wizardTitle": "Notes: transcription summaries"
+      },
       "preferences": [],
       "restrictions": ["allowNotesTranscriptionSummary"],
       "declarations": ["intelligence.Apps.Notes.AllowTranscriptionSummary"],
@@ -133,6 +205,11 @@
     },
     "safariSummaries": {
       "description": "Safari summaries",
+      "display": {
+        "title": "Safari Summaries",
+        "symbol": "safari",
+        "group": "Apps"
+      },
       "preferences": [],
       "restrictions": ["allowSafariSummary"],
       "declarations": ["intelligence.Apps.Safari.AllowSummary"],
@@ -140,10 +217,16 @@
     },
     "messagesSummaries": {
       "description": "Messages summaries",
+      "display": {
+        "title": "Messages Summaries",
+        "symbol": "message",
+        "group": "Apps"
+      },
       "preferences": [
         {
           "domain": "com.apple.MobileSMS",
           "key": "messageSummarizationEnabled",
+          "title": "Messages Summaries",
           "inverted": false
         }
       ],
@@ -153,10 +236,16 @@
     },
     "notificationSummaries": {
       "description": "Notification summaries",
+      "display": {
+        "title": "Notification Summaries",
+        "symbol": "bell",
+        "group": "System"
+      },
       "preferences": [
         {
           "domain": "group.com.apple.usernoted",
           "key": "summarize_previews",
+          "title": "Notification Summaries",
           "inverted": false
         }
       ],
@@ -166,10 +255,16 @@
     },
     "inlinePredictions": {
       "description": "Inline text predictions",
+      "display": {
+        "title": "Inline Predictions",
+        "symbol": "text.cursor",
+        "group": "Siri & Writing"
+      },
       "preferences": [
         {
           "domain": ".GlobalPreferences",
           "key": "NSAutomaticInlinePredictionEnabled",
+          "title": "Inline Predictions",
           "inverted": false
         }
       ],
@@ -179,10 +274,17 @@
     },
     "spatialPhotos": {
       "description": "Spatial Photos",
+      "display": {
+        "title": "Spatial Photos",
+        "symbol": "photo.stack",
+        "group": "Apps",
+        "downloadPurpose": "Create photos with depth"
+      },
       "preferences": [
         {
           "domain": "com.apple.spatialphotosrelive",
           "key": "LocallyDisabled",
+          "title": "Spatial Photos",
           "inverted": true
         }
       ],
@@ -199,6 +301,11 @@
     },
     "visualIntelligence": {
       "description": "Visual Intelligence (macOS 27+)",
+      "display": {
+        "title": "Visual Intelligence",
+        "symbol": "eye",
+        "group": "System"
+      },
       "preferences": [],
       "restrictions": [],
       "declarations": ["intelligence.AllowVisualIntelligence"],
@@ -209,6 +316,12 @@
     },
     "calendarIntelligence": {
       "description": "Edit Calendar and Reminders using natural language (macOS 27+)",
+      "display": {
+        "title": "Calendar Intelligence",
+        "symbol": "calendar",
+        "group": "Apps",
+        "wizardTitle": "Calendar & Reminders (macOS 27+)"
+      },
       "preferences": [],
       "restrictions": [],
       "declarations": [
@@ -218,6 +331,13 @@
     },
     "photosCleanup": {
       "description": "Models used by Photos Clean Up; does not change Photos settings",
+      "display": {
+        "title": "Photos Clean Up",
+        "symbol": "sparkles",
+        "group": "Apps",
+        "wizardTitle": "Photos Clean Up models",
+        "downloadPurpose": "Remove unwanted objects from photos"
+      },
       "preferences": [],
       "restrictions": [],
       "declarations": [],
@@ -232,6 +352,13 @@
     },
     "codeIntelligence": {
       "description": "Models used for code generation; does not change app settings",
+      "display": {
+        "title": "Code Generation",
+        "symbol": "chevron.left.forwardslash.chevron.right",
+        "group": "Shared Models",
+        "wizardTitle": "Code generation models",
+        "downloadPurpose": "Code generation in supported apps"
+      },
       "preferences": [],
       "restrictions": [],
       "declarations": [],
@@ -257,6 +384,13 @@
     },
     "foundationModels": {
       "description": "Shared foundation models; individual features have separate controls",
+      "display": {
+        "title": "Core AI Models",
+        "symbol": "cube.transparent",
+        "group": "Shared Models",
+        "wizardTitle": "Shared foundation models",
+        "downloadPurpose": "Shared models used by Apple Intelligence"
+      },
       "preferences": [],
       "restrictions": [],
       "declarations": [],
@@ -273,6 +407,28 @@
         ],
         "minimumOSMajorVersion": 27
       }
+    }
+  },
+  "modelDisplay": {
+    "com.apple.modelcatalog": {
+      "title": "Core AI Models",
+      "wizardTitle": "Shared Apple Intelligence models"
+    },
+    "com.apple.MobileAsset.UAF.FM.Visual": {
+      "title": "Image Generation",
+      "wizardTitle": "Image generation models"
+    },
+    "com.apple.MobileAsset.UAF.FM.CodeLM": {
+      "title": "Code Generation",
+      "wizardTitle": "Code generation models"
+    },
+    "com.apple.MobileAsset.UAF.Photos.MagicCleanup": {
+      "title": "Photos Clean Up",
+      "wizardTitle": "Photos Clean Up models"
+    },
+    "com.apple.MobileAsset.UAF.Photos.SpatialPhotosRelive": {
+      "title": "Spatial Photos",
+      "wizardTitle": "Spatial Photos models"
     }
   },
   "assetTypes": {

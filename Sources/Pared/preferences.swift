@@ -1,11 +1,13 @@
 import CoreFoundation
 import Foundation
 
-struct PreferenceStatus: Encodable {
+struct PreferenceStatus: Codable, Identifiable {
   let domain: String
   let key: String
   let value: Bool?
   let forced: Bool
+
+  var id: Preference.ID { Preference.ID(domain: domain, key: key) }
 
   enum CodingKeys: String, CodingKey { case domain, key, value, forced }
 
@@ -37,7 +39,7 @@ func validateDownloadPreferences(policy: Policy, catalog: Catalog, names: [Strin
     guard policy.state(name) != .unmanaged else { continue }
     for preference in catalog.features[name]!.preferences {
       let status = preferenceStatus(preference)
-      let desired = (policy.state(name) == .enabled) != preference.inverted
+      let desired = preference.value(for: policy.state(name))
       if status.forced && status.value != desired {
         throw CLIError(
           "\(name) is forced by a management profile; update or remove that profile first")
@@ -59,7 +61,7 @@ func applyPreferences(policy: Policy, catalog: Catalog, names: [String], reset: 
         report("\(name) remains managed until the updated profile is installed")
       }
       let value: CFPropertyList? =
-        reset ? nil : NSNumber(value: (state == .enabled) != preference.inverted)
+        reset ? nil : NSNumber(value: preference.value(for: state))
       CFPreferencesSetValue(
         preference.key as CFString, value, preference.domain as CFString,
         kCFPreferencesCurrentUser, kCFPreferencesAnyHost)

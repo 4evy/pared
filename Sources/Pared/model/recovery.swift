@@ -30,12 +30,8 @@ func recoverModels(
       UnifiedAssets.framework,
       RTLD_NOW) != nil
   else { throw CLIError("Cannot load UnifiedAssetFramework") }
-  let targets = Set(
-    names.flatMap { name in
-      let feature = catalog.features[name]!
-      return feature.assetSets + (feature.recovery?.additionalAssetSets ?? [])
-    }
-  ).sorted()
+  let targets = catalog.assetSets(for: names, at: \.downloadAssetSets)
+  let assets = try catalog.modelAssets(targets, includingDownloadDependencies: true)
   // The installed profile can still block downloads after the CLI policy
   // changes. Read the daemon's managed preferences and reject requests that
   // Pared's download override would redirect to loopback
@@ -46,9 +42,8 @@ func recoverModels(
       let managed = try PropertyListSerialization.propertyList(
         from: Data(contentsOf: managedURL), format: nil) as? [String: Any]
     else { throw CLIError("Installed download policy has an unknown format; no request sent") }
-    let blocked = targets.contains { target in
-      guard let type = catalog.downloadAssetTypes[target] else { return false }
-      return managed[block.keyPrefix + type] as? String == block.url
+    let blocked = assets.contains { asset in
+      managed[block.keyPrefix + asset.assetType] as? String == block.url
     }
     guard !blocked else {
       throw CLIError(
@@ -56,55 +51,37 @@ func recoverModels(
       )
     }
   }
-  guard validate(targets, assetTypes: catalog.downloadAssetTypes) else { return .unavailable }
+  do {
+    for asset in assets { try asset.validateConfiguration() }
+  } catch {
+    report(String(describing: error))
+    return .unavailable
+  }
   for name in names {
     let feature = catalog.features[name]!
     let recovery = feature.recovery!
-    for (set, usages) in recovery.assetSetUsages ?? [:] {
-      guard
-        let known = ParedUsageTypesForSet(set),
-        !usages.isEmpty, Set(usages.keys).isSubset(of: known)
-      else { throw CLIError("Download usages no longer match the catalog for \(name)") }
-    }
+    // The bridge validates usage names and ENABLED values when constructing
+    // subscriptions; this check keeps alias expansion inside the catalog scope
     for (alias, value) in recovery.usageAliases {
       guard
         let usages = ParedResolveUsageAlias(alias, value),
         !usages.isEmpty,
         Set(usages.keys).isSubset(
-          of: feature.assetSets + (recovery.additionalAssetSets ?? []))
+          of: feature.downloadAssetSets)
       else { throw CLIError("Download alias no longer matches the catalog for \(name)") }
-      for (set, resolved) in usages {
-        guard let known = ParedUsageTypesForSet(set),
-          !resolved.isEmpty, Set(resolved.keys).isSubset(of: known),
-          resolved.values.allSatisfy({ ModelUsage(rawValue: $0) == .enabled })
-        else { throw CLIError("Download alias contains unsupported usages for \(name)") }
-      }
     }
   }
-  // Construct all subscriptions first so an unavailable initializer cannot
-  // leave only some requests sent; Apple's objects provide the XPC encoding
-  let subscriptions = try recoveries.map {
-    recovery -> (subscriber: String, name: String, object: ParedAssetSubscription) in
-    var error: NSError?
-    guard
-      let subscription = ParedSubscription(
-        recovery.name, (recovery.assetSetUsages ?? [:]).mapValues { $0.mapValues(\.rawValue) },
-        recovery.usageAliases, &error)
-    else {
-      if let error { throw error }
-      throw CLIError("Cannot construct download subscription; no request sent")
-    }
-    return (recovery.subscriber, recovery.name, subscription)
-  }
-  for (subscriber, entries) in Dictionary(grouping: subscriptions, by: \.subscriber) {
-    // Subscribe skips unchanged requests, and ResetAssetSets can leave those
-    // requests intact; unsubscribe first to trigger fresh configuration
-    // If Subscribe then fails, these subscriptions remain absent
-    let refresh = unsubscribeModelRequests(entries.map(\.name), subscriber: subscriber)
+  let batches = try ModelSubscriptionBatch.prepare(recoveries)
+  for batch in batches {
+    // ResetAssetSets can leave requests intact; unsubscribe first to bypass
+    // Subscribe's identical-subscription shortcut when restoring our request
+    // Apple also compares specifiers across all subscribers, so unchanged
+    // aggregate demand can still skip configuration and a new download
+    // The operations are separate; a failed Subscribe can leave the restored
+    // request absent or partially applied
+    let refresh = unsubscribeModelRequests(batch.names, subscriber: batch.subscriber)
     guard refresh == .success else { return refresh }
-    let result = modelOperation(
-      .subscribe(subscriber: subscriber, subscriptions: entries.map(\.object))
-    ) { error, reply in
+    let result = modelOperation(.subscribe(batch)) { error, reply in
       if let error {
         reply.finish(
           .failure, message: "Subscription failed; partial changes are possible: \(error)")
@@ -123,7 +100,7 @@ func unsubscribeModelRequests(_ names: [String], subscriber: String) -> ExitStat
   return modelOperation(.unsubscribe(subscriber: subscriber, names: names)) { error, reply in
     reply.finish(
       error == nil ? .success : .failure,
-      message: error.map { "Cannot remove selected download requests: \($0)" }
-        ?? "Removed selected download requests for \(subscriber)")
+      message: error.map { "Unsubscribe reported an error; partial changes are possible: \($0)" }
+        ?? "Unsubscribe accepted for selected download requests for \(subscriber)")
   }
 }

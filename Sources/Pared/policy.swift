@@ -1,16 +1,28 @@
 import Foundation
 
-enum FeatureState: String, Codable {
+enum FeatureState: String, CaseIterable, Codable {
   case enabled, disabled, unmanaged
 }
 
-struct Policy: Codable {
+struct Policy: Codable, Equatable {
   static let supportedSchemaVersion = 1
   var schemaVersion = supportedSchemaVersion
   var defaultState: FeatureState = .disabled
   var features: [String: FeatureState] = [:]
 
   func state(_ name: String) -> FeatureState { features[name, default: defaultState] }
+
+  mutating func set(_ state: FeatureState, for names: some Sequence<String>) {
+    features.merge(names.map { ($0, state) }) { _, requested in requested }
+  }
+
+  func managedFeatures(in catalog: Catalog) -> [String: Feature] {
+    catalog.features.filter { state($0.key) != .unmanaged }
+  }
+
+  func changedFeatureNames(from original: Policy, in catalog: Catalog) -> [String] {
+    catalog.featureNames.filter { state($0) != original.state($0) }
+  }
 
   func validate(_ catalog: Catalog) throws(CLIError) {
     guard schemaVersion == Self.supportedSchemaVersion else {
@@ -28,7 +40,31 @@ struct Policy: Codable {
   }
 
   static func load(_ url: URL, explicit: Bool, catalog: Catalog) throws -> Policy {
-    if !FileManager.default.fileExists(atPath: url.path) && !explicit { return Policy() }
+    if !explicit {
+      var candidate = url
+      while true {
+        do {
+          // Unlike fileExists, this preserves denied access and dangling links
+          _ = try FileManager.default.attributesOfItem(atPath: candidate.path)
+          if candidate == url { break }
+          // A missing policy behind a broken directory link is not a new policy
+          var isDirectory: ObjCBool = false
+          guard FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+            isDirectory.boolValue
+          else { throw CLIError("Policy directory is unavailable: \(candidate.path)") }
+          return Policy()
+        } catch {
+          let fileError = error as NSError
+          let underlying = fileError.userInfo[NSUnderlyingErrorKey] as? NSError
+          guard candidate.path != "/", fileError.domain == NSCocoaErrorDomain,
+            fileError.code == NSFileReadNoSuchFileError,
+            underlying == nil
+              || (underlying?.domain == NSPOSIXErrorDomain && underlying?.code == Int(ENOENT))
+          else { throw error }
+          candidate = candidate.deletingLastPathComponent()
+        }
+      }
+    }
     let policy = try JSONDecoder().decode(Policy.self, from: Data(contentsOf: url))
     try policy.validate(catalog)
     return policy
@@ -40,17 +76,12 @@ struct Policy: Codable {
     try jsonData(self).write(to: url, options: .atomic)
   }
 
-  // Remove a shared model only when every consumer in the catalog is disabled.
+  // Remove a shared model only when every consumer in the catalog is disabled
   // This protects known consumers; the catalog may omit Apple dependencies
   func cleanupTargets(_ catalog: Catalog) -> [String] {
-    let consumers = Dictionary(
-      grouping: catalog.features.flatMap { name, feature in
-        feature.assetSets.map { (asset: $0, feature: name) }
-      },
-      by: \.asset)
-    return catalog.assetTypes.keys.filter { asset in
-      guard let consumers = consumers[asset] else { return false }
-      return consumers.allSatisfy { state($0.feature) == .disabled }
+    catalog.assetTypes.keys.filter { assetSet in
+      let consumers = catalog.consumers(of: assetSet)
+      return !consumers.isEmpty && consumers.allSatisfy { state($0) == .disabled }
     }.sorted()
   }
 }

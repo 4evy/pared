@@ -30,24 +30,3 @@ enum UnifiedAssets {
   static let assetExtension = "asset"
   static var serviceInterface: NSXPCInterface? { ParedServiceInterface() }
 }
-
-// Require each operation's fields before building the XPC dictionary
-// In particular, reset must include AssetSets: omitting it resets every set
-enum ModelOperation {
-  case reset(assetSets: [String])
-  case subscribe(subscriber: String, subscriptions: [ParedAssetSubscription])
-  case unsubscribe(subscriber: String, names: [String])
-
-  func send(
-    to proxy: NSObject, completion: @escaping (Error?) -> Void, error: inout NSError?
-  ) -> Bool {
-    switch self {
-    case .reset(let assetSets):
-      ParedPerformReset(proxy, assetSets, completion, &error)
-    case .subscribe(let subscriber, let subscriptions):
-      ParedPerformSubscribe(proxy, subscriber, subscriptions, completion, &error)
-    case .unsubscribe(let subscriber, let names):
-      ParedPerformUnsubscribe(proxy, subscriber, names, completion, &error)
-    }
-  }
-}

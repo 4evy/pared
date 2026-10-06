@@ -2,10 +2,10 @@ import Foundation
 
 func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: ManagementValue]] {
   var values: [String: [String: ManagementValue]] = [:]
-  for (name, feature) in catalog.features where policy.state(name) != .unmanaged {
+  for (name, feature) in policy.managedFeatures(in: catalog) {
     for preference in feature.preferences {
       values[preference.domain, default: [:]][preference.key] =
-        .boolean((policy.state(name) == .enabled) != preference.inverted)
+        .boolean(preference.value(for: policy.state(name)))
     }
   }
   // mobileassetd can read managed preferences, but its sandbox denies ordinary
@@ -26,7 +26,7 @@ enum ProfileIdentity {
   static let payloadVersion = 1
 }
 
-// Catalog keys vary, but profile and declaration values use only these types.
+// Catalog keys vary, but profile and declaration values use only these types
 // Keep arbitrary objects out of the serialized management settings
 indirect enum ManagementValue: Encodable {
   case string(String)
@@ -62,9 +62,11 @@ func profileData(policy: Policy, catalog: Catalog) throws -> Data {
     type: "com.apple.applicationaccess",
     identifier: ProfileIdentity.identifier + ".restrictions",
     uuid: ProfileIdentity.restrictionsUUID, displayName: "Apple Intelligence restrictions")
-  for (name, feature) in catalog.features where policy.state(name) != .unmanaged {
-    for key in feature.restrictions { restrictions[key] = .boolean(policy.state(name) == .enabled) }
-  }
+  restrictions.merge(
+    policy.managedFeatures(in: catalog).flatMap { name, feature in
+      feature.restrictions.map { ($0, ManagementValue.boolean(policy.state(name) == .enabled)) }
+    }
+  ) { _, requested in requested }
   let values = preferenceValues(policy: policy, catalog: catalog)
   // Group forced preferences by domain in separate profile payloads
   let preferencePayloads: [ManagementValue] = values.sorted(by: { $0.key < $1.key }).map {
@@ -97,24 +99,24 @@ private func setPath(
   _ parts: ArraySlice<String>, value: Bool, in object: inout [String: ManagementValue]
 ) {
   guard let part = parts.first else { return }
-  let key = part
   if parts.count == 1 {
-    object[key] = .boolean(value)
+    object[part] = .boolean(value)
     return
   }
   var child: [String: ManagementValue] = [:]
-  if case .object(let existing) = object[key] { child = existing }
+  if case .object(let existing) = object[part] { child = existing }
   setPath(parts.dropFirst(), value: value, in: &child)
-  object[key] = .object(child)
+  object[part] = .object(child)
 }
 
 enum DeclarationGroup: String, CaseIterable {
-  case intelligence, external
+  case intelligence, external, siri
 
   var identifier: String {
     switch self {
     case .intelligence: return "intelligence"
     case .external: return "external-intelligence"
+    case .siri: return "siri"
     }
   }
 }
@@ -132,24 +134,24 @@ private struct ManagementDeclaration: Encodable {
 }
 
 // Apple schemas: github.com/apple/device-management, release branch:
-// declarative/declarations/configurations/{intelligence,external-intelligence}.settings.yaml
+// declarative/declarations/configurations/{intelligence,external-intelligence,siri}.settings.yaml
 // Send these configurations through supervised MDM; System Settings cannot
 // install them as profiles. The schemas require macOS 26.4 or later, with
 // Visual Intelligence and Calendar settings requiring macOS 27 or later
 func declarationData(policy: Policy, catalog: Catalog) throws -> Data {
-  var groups: [String: ManagementValue] = [:]
-  for (name, feature) in catalog.features where policy.state(name) != .unmanaged {
+  var groups: [DeclarationGroup: [String: ManagementValue]] = [:]
+  for (name, feature) in policy.managedFeatures(in: catalog) {
     for path in feature.declarations {
       setPath(
-        ([path.group.rawValue] + path.components)[...], value: policy.state(name) == .enabled,
-        in: &groups)
+        path.components[...], value: policy.state(name) == .enabled,
+        in: &groups[path.group, default: [:]])
     }
   }
   let declarations = DeclarationGroup.allCases.compactMap { group -> ManagementDeclaration? in
-    guard let payload = groups[group.rawValue] else { return nil }
+    guard let payload = groups[group] else { return nil }
     return ManagementDeclaration(
       type: "com.apple.configuration.\(group.identifier).settings",
-      identifier: "org.pared.\(group.identifier)", payload: payload)
+      identifier: "org.pared.\(group.identifier)", payload: .object(payload))
   }
   return try jsonData(declarations)
 }

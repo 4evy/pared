@@ -1,9 +1,40 @@
 import Foundation
 
-struct Preference: Decodable {
+struct Preference: Decodable, Identifiable {
+  struct ID: Hashable {
+    let domain: String
+    let key: String
+  }
+
   let domain: String
   let key: String
   let inverted: Bool
+  let title: String?
+
+  var id: ID { ID(domain: domain, key: key) }
+
+  func value(for state: FeatureState) -> Bool { (state == .enabled) != inverted }
+}
+
+enum FeatureGroup: String, CaseIterable, Decodable {
+  case siriAndWriting = "Siri & Writing"
+  case apps = "Apps"
+  case system = "System"
+  case sharedModels = "Shared Models"
+}
+
+struct FeatureDisplay: Decodable {
+  let title: String
+  let symbol: String
+  let group: FeatureGroup
+  let wizardTitle: String?
+  let downloadPurpose: String?
+  let note: String?
+}
+
+struct ModelDisplay: Decodable {
+  let title: String
+  let wizardTitle: String
 }
 
 enum ModelUsage: String, Codable {
@@ -40,11 +71,31 @@ struct ModelRecovery: Codable {
 
 struct Feature: Decodable {
   let description: String
+  let display: FeatureDisplay?
   let preferences: [Preference]
   let restrictions: [String]
   let declarations: [DeclarationPath]
   let assetSets: [String]
   let recovery: ModelRecovery?
+
+  var managementRequired: Bool {
+    !restrictions.isEmpty || !declarations.isEmpty || !assetSets.isEmpty
+  }
+
+  var modelAvailabilityOnly: Bool {
+    preferences.isEmpty && restrictions.isEmpty && declarations.isEmpty
+  }
+
+  var controls: [String] {
+    [
+      ("preferences", !preferences.isEmpty),
+      ("profile", !restrictions.isEmpty || !assetSets.isEmpty),
+      ("MDM", !declarations.isEmpty),
+      ("models", !assetSets.isEmpty),
+    ].compactMap { label, present in present ? label : nil }
+  }
+
+  var downloadAssetSets: [String] { assetSets + (recovery?.additionalAssetSets ?? []) }
 }
 
 struct DownloadBlocking: Decodable {
@@ -58,6 +109,7 @@ struct Catalog: Decodable {
   let schemaVersion: Int
   let features: [String: Feature]
   let assetTypes: [String: String]
+  let modelDisplay: [String: ModelDisplay]?
   // These dependencies may be downloaded but are excluded from cleanup
   let recoveryAssetTypes: [String: String]?
   let preferenceUUIDs: [String: String]
@@ -65,6 +117,46 @@ struct Catalog: Decodable {
 
   var downloadAssetTypes: [String: String] {
     assetTypes.merging(recoveryAssetTypes ?? [:]) { existing, _ in existing }
+  }
+
+  var featureNames: [String] { features.keys.sorted() }
+
+  func modelAssets(_ names: [String], includingDownloadDependencies: Bool = false)
+    throws(CLIError) -> [ModelAssetSet]
+  {
+    let types = includingDownloadDependencies ? downloadAssetTypes : assetTypes
+    return try names.map { name throws(CLIError) -> ModelAssetSet in
+      guard let assetType = types[name] else {
+        throw CLIError("Missing asset type in the catalog for \(name); no request sent")
+      }
+      return ModelAssetSet(name: name, assetType: assetType)
+    }
+  }
+
+  func selectedFeatureNames(_ requested: [String]) throws(CLIError) -> [String] {
+    if requested.contains("all") {
+      guard requested == ["all"] else { throw CLIError("Use 'all' alone") }
+      return featureNames
+    }
+    for name in requested where features[name] == nil {
+      throw CLIError("Unknown feature: \(name)")
+    }
+    return Set(requested).sorted()
+  }
+
+  func assetSets(
+    for names: some Sequence<String>, at keyPath: KeyPath<Feature, [String]> = \.assetSets
+  ) -> [String] {
+    Set(names.flatMap { features[$0]![keyPath: keyPath] }).sorted()
+  }
+
+  func consumers(of assetSet: String) -> [String] {
+    features.filter { $0.value.assetSets.contains(assetSet) }.keys.sorted()
+  }
+
+  func modelTitle(_ assetSet: String, wizard: Bool = false) -> String {
+    guard let display = modelDisplay?[assetSet] else { return assetSet }
+    return wizard ? display.wizardTitle : display.title
   }
 
   static func load() throws -> Catalog {
@@ -81,11 +173,14 @@ struct Catalog: Decodable {
       throw CLIError("Missing download blocking profile identity")
     }
     for (name, feature) in catalog.features {
+      guard Set(feature.preferences.map(\.id)).count == feature.preferences.count else {
+        throw CLIError("Duplicate preference mappings for \(name)")
+      }
       guard feature.assetSets.allSatisfy({ catalog.assetTypes[$0] != nil }),
         feature.preferences.allSatisfy({ catalog.preferenceUUIDs[$0.domain] != nil })
       else { throw CLIError("Incomplete catalog mappings for \(name)") }
       if let recovery = feature.recovery {
-        let allowed = Set(feature.assetSets + (recovery.additionalAssetSets ?? []))
+        let allowed = Set(feature.downloadAssetSets)
         guard !recovery.name.isEmpty, !recovery.subscriber.isEmpty,
           !recovery.usageAliases.isEmpty || !(recovery.assetSetUsages ?? [:]).isEmpty,
           allowed.allSatisfy({ catalog.downloadAssetTypes[$0] != nil }),
@@ -105,3 +200,4 @@ struct CLIError: Error, CustomStringConvertible {
 func report(_ message: String) {
   FileHandle.standardError.write(Data((message + "\n").utf8))
 }
+
