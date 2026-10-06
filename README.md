@@ -1,351 +1,129 @@
-<!-- rumdl-disable MD033 -->
-
-<h1 align="center">pared</h1>
+<!-- rumdl-disable MD033 MD041 -->
 
 <p align="center">
-  Remove Apple Intelligence models without disabling SIP
+  <img src=".github/assets/readme-hero.png" width="100%"
+    alt="Pared — A little less AI. A little more Mac. Choose the features you keep. Remove the models you don’t need.">
 </p>
+
+<a id="install" name="install"></a>
 
 <p align="center">
-  <a href="#install"><img src="https://img.shields.io/badge/macOS-27+-000000?logo=apple" alt="macOS 27 or newer"></a>
-  <a href="#how-it-works"><img src="https://img.shields.io/badge/SIP-enabled-2ea44f" alt="SIP stays enabled"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <a href="https://github.com/4evy/pared/releases/latest/download/pared-app-macos-arm64.zip">
+    <img src=".github/assets/download-macos.svg" width="264" height="64"
+      alt="Download Pared for macOS">
+  </a>
+  <br>
+  Unzip the download and drag Pared to Applications.
 </p>
+
+**Prefer the guided terminal installer?** Open **Terminal** from Applications ->
+Utilities, paste this command, and press Return:
+
+```sh
+curl -fsSL --proto '=https' --proto-redir '=https' \
+  https://github.com/4evy/pared/releases/latest/download/install.sh | sh
+```
+
+Both downloads require an Apple silicon Mac running macOS 27 or newer and will
+be available with the [first prebuilt release](https://github.com/4evy/pared/releases).
+The terminal installer opens a wizard; you don’t need Xcode or Homebrew.
 
 <p align="center">
-  <a href="#install">Install</a> ·
-  <a href="#use">Usage</a> ·
-  <a href="#similar-projects">Compare</a> ·
-  <a href="https://4evy.github.io/pared/">Nix documentation</a>
+  <a href="https://4evy.github.io/pared/">Website</a> ·
+  <a href="https://4evy.github.io/pared/docs/">Documentation</a> ·
+  <a href="docs/cli.md#install">More install options</a>
 </p>
 
-Pared turns off selected Apple Intelligence features and asks Apple's asset
-service to remove their downloaded models. System Integrity Protection (SIP)
-stays enabled. Use the macOS app or CLI for local settings, or manage a policy
-with nix-darwin or Home Manager.
+# Apple Intelligence, on your terms
 
-Removing models and preventing their return are separate steps: cleanup removes
-existing models, and an installed configuration profile blocks future downloads.
+Pared helps you choose which Apple Intelligence features stay on your Mac. Keep
+Writing Tools, turn off Genmoji, or switch everything off. Then review and
+remove the downloaded models you no longer need.
 
-## Install
+It’s a native Mac app with a terminal wizard and Nix modules too. System
+Integrity Protection, your Mac’s built-in system protection, stays enabled.
 
-### Guided installation (no developer tools)
+<p align="center">
+  <img src="docs/site/public/images/app-overview.webp" width="880"
+    alt="Pared’s Overview page with a choice summary, feature controls, model removal, and expandable downloads">
+</p>
 
-Requires an Apple silicon Mac (M1 or newer) running macOS 27 or newer.
-No Swift, Xcode, Homebrew, or administrator password is needed.
+## Keep what you use
 
-After the first prebuilt release is published, download the bootstrap and run it:
+Choose features individually, or turn them all off at once. Pared keeps a shared
+model whenever a feature in its catalog still needs it. For example, keeping
+Siri also keeps its shared foundation models.
 
-```sh
-curl --fail --location --proto '=https' --proto-redir '=https' \
-  --output "$HOME/Downloads/pared-install.sh" \
-  https://github.com/4evy/pared/releases/latest/download/install.sh &&
-sh "$HOME/Downloads/pared-install.sh"
-```
+<p align="center">
+  <img src="docs/site/public/images/app-features.webp" width="880"
+    alt="Pared’s Features page with Writing Tools set to Off in the draft choices">
+</p>
 
-The POSIX script checks the download's SHA-256 and opens `pared wizard`.
-All prompts and installation choices live in the Swift wizard, not the script.
-Choose **Install Pared** to install in `~/.local` or another directory, then
-optionally add the command to your shell's `PATH`. Open a new terminal window
-after accepting that last step. Updating preserves your policy and refuses to
-overwrite an unrelated installation.
+## A few choices, then a review
 
-For offline use, download `install.sh`, `pared-macos-arm64.tar.gz`, and
-`pared-macos-arm64.tar.gz.sha256` from the same release into one folder:
+1. **Choose your features.** Set each one to On, Off, or App Default. A new
+   policy starts with everything off; review your choices before saving
+2. **Finish setup.** Install Pared’s configuration profile in System Settings.
+   It applies supported controls and blocks unwanted model downloads
+3. **Review model removal.** Pared shows which models can go before you
+   confirm. Saving feature settings and removing models are separate actions
 
-```sh
-sh install.sh --archive ./pared-macos-arm64.tar.gz
-```
+<p align="center">
+  <img src="docs/site/public/images/app-setup.webp" width="880"
+    alt="Pared’s Setup page with profile installation status and the steps to save choices, install the profile, and refresh">
+</p>
 
-`--archive` must come first. Remaining arguments are forwarded to the wizard;
-for example, `--prefix /full/path` suggests an installation directory and
-`--policy FILE` opens an existing policy. Run `sh install.sh --help` for details.
+Want a feature back? Turn it on, install the updated profile, then request its
+models in Pared. Downloads continue in the background. For features Pared can’t
+request directly, turn them on in their Apple app.
 
-### Homebrew
+## Build from source
 
-Requires macOS 27 and Xcode 27 or newer.
-
-```sh
-brew tap 4evy/pared https://github.com/4evy/pared.git
-brew install 4evy/pared/pared
-```
-
-### Nix
-
-On Apple silicon, with Nix flakes enabled:
-
-```sh
-nix run github:4evy/pared -- status
-nix profile install github:4evy/pared
-```
-
-To build a local checkout, run `nix build`. The executable is
-`./result/bin/pared`.
-
-## Use
-
-### Terminal wizard
-
-Run `pared wizard` for a reusable, guided menu. Use arrow keys and Enter to
-choose an action; use Space to select features in a multi-select prompt.
-Installation, feature settings, profile installation, and model cleanup are
-separate actions, each with its own confirmation. Confirmations default to No.
-
-Opening the wizard does not change settings. A new policy defaults every feature
-to disabled, including unselected features; review it before installing the
-profile. Cleanup always shows eligible model sets before asking to remove them.
-The preview measures neither installed model sizes nor reclaimed disk space.
-Profile installation still requires review and approval in System Settings.
-
-Run `pared wizard --help` for options. The wizard uses the same policy,
-preference writes, profile generation, and shared-model cleanup rules as the CLI.
-
-### macOS app
-
-Open the native interface with `pared gui`. Browse and search features, choose
-Enabled, Disabled, or Unmanaged, then save your changes. The Profile page opens
-System Settings to install the generated profile. The Models page previews
-removal and requests downloads for enabled features with catalog mappings.
-
-Opening the app does not apply a new policy. A new policy starts with every
-feature disabled, so review your choices before saving. Model removal requires
-a separate review; saving settings does not remove models.
-
-To build a Finder-launchable app from this checkout with Xcode 27 or newer:
+To try the app before prebuilt downloads are available, install Xcode 27 or
+newer and run these commands from this checkout:
 
 ```sh
 tools/build-app.sh
 open .build/Pared.app
 ```
 
-Use **File → Open Policy** to inspect an existing JSON policy, including one
-generated by Nix, or launch with `pared gui --policy FILE`. Nix-store policies
-are read-only in the app; change them in your Nix configuration and rebuild.
+For the CLI, installation alternatives, and offline setup, see the [command-line
+guide](docs/cli.md#install).
 
-### CLI
+## Use
 
-Start by checking the feature names and current policy:
+Open the app to choose features, finish profile setup, and review model removal.
+Opening Pared does not change your settings.
 
-```sh
-pared features
-pared status
-```
+Prefer the terminal? Run `pared wizard` for guided setup. Use arrow keys and
+Enter to move through the menus, Space to select features, and `/` to search.
+Your feature changes stay in a draft until you save.
 
-A new policy defaults to **disabled for every feature**. The CLI stores it in
-`~/Library/Application Support/pared/policy.json`. `status` reports both the
-policy you requested and the preferences it can read; the policy alone does not
-prove that macOS enforces those settings.
+<p align="center">
+  <img src=".github/assets/wizard.gif" width="880"
+    alt="Pared’s terminal wizard selecting features, reviewing a draft, and previewing model removal">
+</p>
 
-Starting from a new policy, this example enables Writing Tools and leaves
-all other features disabled:
+The walkthrough previews removal and discards the draft. Read the [command-line
+guide](docs/cli.md) for commands, keeping Siri, and downloading models again.
 
-```sh
-pared enable writingTools
-pared profile open
-```
+### Configure it with Nix
 
-Finish installing the generated profile in System Settings. Until you replace an
-existing profile, its settings remain enforced. `enable`, `disable`, and `reset`
-save the new policy even when the installed profile overrides it. Enabling a
-feature permits its use; it does not download its models.
+Pared includes nix-darwin and Home Manager modules. Keep your feature choices in
+your configuration and rebuild to apply preferences and generate a profile.
+Install the profile through System Settings to block future downloads.
 
-Once the profile is installed, preview and run cleanup:
+Both modules also clean up eligible models during activation by default. You can
+turn this off with `programs.pared.cleanupOnActivation = false;`.
 
-```sh
-pared models cleanup --dry-run
-pared models cleanup
-```
-
-Cleanup selects a model only when all of its consumers listed in Pared's catalog
-are disabled. A shared model stays available if any known consumer is enabled or
-unmanaged. `enable` and `disable` do not delete models themselves.
-
-To stop managing a feature, remove its local preferences and replace the
-profile:
-
-```sh
-pared reset inlinePredictions
-pared profile open
-```
-
-`reset` removes preference overrides; it does not restore values saved before
-Pared ran. Apple supplies the defaults where no other policy applies.
-
-### Download models again
-
-Enable the feature and install the replacement profile before requesting its
-models. For a feature with a download mapping in the catalog, such as Genmoji:
-
-```sh
-pared enable genmoji
-pared profile open
-# Finish installing the profile in System Settings before continuing
-pared models download genmoji
-pared models status genmoji
-```
-
-A successful download request means Apple's service accepted the subscription.
-The download continues in the background. `models status` reports a snapshot and
-local asset directories, not live progress or reclaimed disk space. For features
-without a download mapping, enable them in their Apple app.
-
-Run `pared --help` for all commands. Use `--policy FILE` to read an existing
-policy at another path; this matters when inspecting settings generated by Nix.
-
-## nix-darwin / Home Manager
-
-Add `inputs.pared.url = "github:4evy/pared";` to your flake. Choose one of the
-modules below.
-
-### nix-darwin
-
-Pass `inputs` through `specialArgs`, then add this to your Darwin config:
-
-```nix
-{ inputs, ... }:
-{
-  imports = [ inputs.pared.darwinModules.default ];
-
-  programs.pared = {
-    enable = true;
-    defaultState = false;
-    features = {
-      writingTools = true;
-      notificationSummaries = false;
-      spatialPhotos = null;
-    };
-  };
-}
-```
-
-### Home Manager
-
-Pass `inputs` through `extraSpecialArgs`, then add this to your home config:
-
-```nix
-{ inputs, ... }:
-{
-  imports = [ inputs.pared.homeManagerModules.default ];
-
-  programs.pared = {
-    enable = true;
-    defaultState = false;
-    features = {
-      writingTools = true;
-      notificationSummaries = false;
-      spatialPhotos = null;
-    };
-  };
-}
-```
-
-In this example, Writing Tools is enabled, Spatial Photos is unmanaged, and all
-other features are disabled by `defaultState = false`. `true` enables a feature,
-`false` disables it, and `null` omits it from generated settings. Changing a Nix
-option to `null` does not remove preferences written earlier.
-
-Rebuild your configuration. For nix-darwin's user preferences, configure
-`system.primaryUser`. Then install `disable-apple-intelligence.mobileconfig`
-from `/etc/pared` (nix-darwin) or `$XDG_CONFIG_HOME/pared` (Home Manager,
-normally `~/.config/pared`) through System Settings.
-
-The same directory contains `policy.json` and `declarations.json`. CLI commands
-use their own policy path unless you pass `--policy`. For example, preview
-cleanup using the nix-darwin policy with:
-
-```sh
-pared models cleanup --policy /etc/pared/policy.json --dry-run
-```
-
-Change Nix-managed settings in your Nix configuration and rebuild; CLI edits to
-a policy in `/nix/store` are rejected. Deploy `declarations.json` through MDM
-(mobile device management) if you use it; it is not an installable profile.
-
-Both modules remove models for disabled features during activation by default.
-They record the last successfully cleaned policy and skip cleanup when it is
-unchanged. A policy change triggers cleanup again; failures retry on the next
-activation. Set `programs.pared.cleanupOnActivation = false;` to opt out. Home
-Manager respects activation dry runs and keeps its cleanup record under
-`$XDG_STATE_HOME/pared`; nix-darwin uses `/var/db/pared`.
-
-Cleanup does not install the profile. Install it to block future model
-downloads.
+Follow the [Nix setup guide](https://4evy.github.io/pared/docs/#quick-start) and
+[option reference](https://4evy.github.io/pared/docs/#sec-options).
 
 ## How it works
 
-Pared uses a shared [feature catalog](Sources/Pared/Resources/catalog.json) to
-connect each feature to its preferences, management restrictions, and model
-asset sets. An asset set is a group of models managed by Apple's asset service.
-The CLI and Nix modules use this catalog to generate the same policy settings.
+Pared asks Apple’s own asset service to remove downloaded models, so System
+Integrity Protection stays on. Its feature catalog connects your choices to
+local settings, profile controls, and the models each feature uses.
 
-<details>
-<summary>Under the hood</summary>
-
-**Preventing downloads.** For each asset type whose known consumers are all
-disabled, the profile sets `DownloadServerBaseURLOverride-<assetType>` in
-`com.apple.MobileAsset` to `https://127.0.0.1:9/pared-blocked/`. `mobileassetd`
-reads these settings from
-`/Library/Managed Preferences/com.apple.MobileAsset.plist`; ordinary system
-`defaults` are denied by its sandbox. This redirects requests for the selected
-asset types to a loopback URL. Catalog checks and local retries can continue
-even while payload downloads are blocked.
-
-**The XPC connection.** Pared loads `UnifiedAssetFramework` with `dlopen` and
-connects to `com.apple.siri.uaf.subscription.service` using `NSXPCConnection`.
-It calls `operationWithConfig:completion:` through Apple's
-`UAFXPCProxyServiceInterface.defaultInterface`, which supplies the wire
-signature and allowed object classes. The Objective-C bridge declares the
-`oneway void` operation and typed configuration getters; Swift does not invoke
-these selectors through `perform`. Runtime shape checks reject unknown asset
-metadata instead of treating it as an empty result.
-
-**Deleting models.** Pared groups features by asset set and selects a set only
-when every known consumer is disabled in your policy. It reads each set's
-`autoAssetType` from `UAFConfigurationManager` and checks it against the
-catalog, then removes matching `org.pared` download subscriptions and sends a
-reset request like this:
-
-```json
-{
-  "Operation": "ResetAssetSets",
-  "AssetSets": ["com.apple.modelcatalog"]
-}
-```
-
-`AssetSets` is always explicit: omitting it means *every* asset set to the
-server. Apple's daemon performs the reset with the entitlements needed to remove
-protected assets, so SIP stays on. A successful reply confirms that the reset
-request returned without an error; check deletion logs and free space to assess
-the result.
-
-**Downloading again.** Enable the feature and install the replacement profile
-before requesting a download. The replacement omits blocks for enabled or
-unmanaged consumers. Resetting a CLI preference alone does not replace an
-installed profile. Removing the profile removes its managed download blocks.
-
-Pared resolves usage aliases and checks explicit usage names against Apple's
-configuration, then builds `UAFAssetSetSubscription` objects with
-`initWithName:assetSets:usageAliases:`. It sends `Unsubscribe` followed by
-`Subscribe` to refresh the selected subscriptions, since reset removes assets
-but can leave their subscription records behind. Apple's service then handles
-the download in the background.
-
-</details>
-
-## Similar projects
-
-Other approaches to removing Apple Intelligence models:
-
-- [Unintelligence](https://github.com/Rismaonee/Unintelligence): a SwiftUI app
-  that falls back to Recovery for protected models.
-- [Delete Apple
-  Intelligence](https://github.com/tejyash/delete-apple-intelligence-macos): a
-  manual removal guide that has you temporarily disable SIP.
-- [Apple Intelligence
-  Remover](https://github.com/minagishl/apple-intelligence-remover): a shell
-  tool with a Recovery script for protected models.
-
-## Reference
-
-- [Nix option reference](https://4evy.github.io/pared/)
-- [Feature catalog](Sources/Pared/Resources/catalog.json)
+Read [how profiles and model removal work](docs/how-it-works.md) for the
+technical details and compatibility limits.
