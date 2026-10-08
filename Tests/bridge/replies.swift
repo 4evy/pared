@@ -1,4 +1,4 @@
-// test_private_apis.swift compiles this with production reply/profile decoders
+// bridge.swift compiles this with production reply/profile decoders
 import Foundation
 import Synchronization
 

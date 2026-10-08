@@ -52,7 +52,7 @@ Apple’s daemon can remove protected assets, so Pared leaves System Integrity
 Protection (SIP) enabled.
 
 Pared loads `UnifiedAssetFramework` with `dlopen` and opens an `NSXPCConnection`
-to `com.apple.siri.uaf.subscription.service`. Its Objective-C bridge calls
+to `com.apple.siri.uaf.subscription.service`. Its Swift bridge calls
 `operationWithConfig:completion:` through Apple’s
 `UAFXPCProxyServiceInterface.defaultInterface` to preserve the XPC signature and
 allowed object classes. The bridge rejects unknown signatures and metadata

@@ -18,7 +18,7 @@ let package = Package(
     .package(url: "https://github.com/swiftlang/swift-subprocess", exact: "1.0.0"),
   ],
   targets: [
-    .target(name: "AssetBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])]),
+    .target(name: "AssetBridge"),
     // Group sources by subsystem; Swift requires unique basenames in a target
     .target(
       name: "Pared",

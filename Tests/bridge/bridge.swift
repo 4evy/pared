@@ -1,7 +1,7 @@
 import Darwin
 // Run private API stress checks without changing asset subscriptions
-// Use swift Tests/test_private_apis.swift [--sanitize] [--repeat COUNT]
-// Sanitizers cover native memory/undefined behavior and Swift reply races
+// Use swift Tests/bridge/bridge.swift [--sanitize] [--repeat COUNT]
+// Sanitizers cover bridge memory and reply races
 import Foundation
 
 private struct CheckFailure: LocalizedError {
@@ -42,7 +42,7 @@ private func main() throws {
       }
       repeatCount = count
     case "--help", "-h":
-      print("Usage: swift Tests/test_private_apis.swift [--sanitize] [--repeat COUNT]")
+      print("Usage: swift Tests/bridge/bridge.swift [--sanitize] [--repeat COUNT]")
       return
     default:
       throw CheckFailure(errorDescription: "Unknown argument: \(argument)")
@@ -53,22 +53,19 @@ private func main() throws {
   try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
   defer { try? FileManager.default.removeItem(at: root) }
   let native = root.appendingPathComponent("native").path
-  let nativeFlags = sanitize ? ["-fsanitize=address,undefined"] : []
   let bridgeSources = try FileManager.default.contentsOfDirectory(atPath: "Sources/AssetBridge")
-    .filter { $0.hasSuffix(".m") }.sorted().map { "Sources/AssetBridge/\($0)" }
+    .filter { $0.hasSuffix(".swift") }.sorted().map { "Sources/AssetBridge/\($0)" }
   try run(
     [
-      "xcrun", "clang", "-fobjc-arc", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
-    ] + nativeFlags + [
-      "-framework", "Foundation", "-ISources/AssetBridge/include", "Tests/private_apis.m",
-    ] + bridgeSources + [
-      "-o",
-      native,
+      "xcrun", "swiftc", "-swift-version", "6", "-warnings-as-errors", "-parse-as-library",
+      "-O", "-g",
+    ] + (sanitize ? ["-sanitize=address"] : []) + bridgeSources + [
+      "Tests/bridge/native.swift", "-o", native,
     ])
   // Compile the private decoders together without exposing them to the product
   let reply = try String(contentsOfFile: "Sources/Pared/reply.swift", encoding: .utf8)
   let profile = try String(contentsOfFile: "Sources/Pared/profile/status.swift", encoding: .utf8)
-  let harness = try String(contentsOfFile: "Tests/private_api_replies.swift", encoding: .utf8)
+  let harness = try String(contentsOfFile: "Tests/bridge/replies.swift", encoding: .utf8)
   let source = root.appendingPathComponent("replies.swift")
   try
     (reply.components(separatedBy: "extension Reply where Value == ExitStatus")[0]

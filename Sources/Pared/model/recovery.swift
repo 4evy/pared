@@ -64,7 +64,7 @@ func recoverModels(
     // subscriptions; this check keeps alias expansion inside the catalog scope
     for (alias, value) in recovery.usageAliases {
       guard
-        let usages = ParedResolveUsageAlias(alias, value),
+        let usages = paredResolveUsageAlias(alias, value),
         !usages.isEmpty,
         Set(usages.keys).isSubset(
           of: feature.downloadAssetSets)

@@ -28,5 +28,5 @@ enum UnifiedAssets {
   static let replyTimeout: TimeInterval = 45
   static let assetDirectory = URL(fileURLWithPath: "/System/Library/AssetsV2", isDirectory: true)
   static let assetExtension = "asset"
-  static var serviceInterface: NSXPCInterface? { ParedServiceInterface() }
+  static var serviceInterface: NSXPCInterface? { paredServiceInterface() }
 }

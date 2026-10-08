@@ -109,7 +109,7 @@ func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] 
     var snapshot: LocalDownloadStatus?
     do {
       var error: NSError?
-      guard let status = ParedLocalStatus(asset.name, &error) else {
+      guard let status = paredLocalStatus(asset.name, &error) else {
         if let error { throw error }
         throw CLIError("Model status returned no result")
       }

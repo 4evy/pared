@@ -6,7 +6,7 @@ struct ModelAssetSet {
   let assetType: String
 
   func validateConfiguration() throws(CLIError) {
-    guard ParedAssetTypeForSet(name) == assetType else {
+    guard paredAssetTypeForSet(name) == assetType else {
       throw CLIError("Asset type does not match the catalog for \(name); no request sent")
     }
   }
@@ -25,7 +25,7 @@ struct ModelSubscriptionBatch {
     init(_ recovery: ModelRecovery) throws {
       var error: NSError?
       guard
-        let native = ParedSubscription(
+        let native = paredSubscription(
           recovery.name,
           (recovery.assetSetUsages ?? [:]).mapValues { $0.mapValues(\.rawValue) },
           recovery.usageAliases, &error)
@@ -58,7 +58,7 @@ struct ModelSubscriptionBatch {
   fileprivate func send(
     to proxy: NSObject, completion: @escaping (Error?) -> Void, error: inout NSError?
   ) -> Bool {
-    ParedPerformSubscribe(proxy, subscriber, subscriptions.map(\.native), completion, &error)
+    paredPerformSubscribe(proxy, subscriber, subscriptions.map(\.native), completion, &error)
   }
 }
 
@@ -73,11 +73,11 @@ enum ModelOperation {
     let sent =
       switch self {
       case .reset(let assetSets):
-        ParedPerformReset(proxy, assetSets, completion, &error)
+        paredPerformReset(proxy, assetSets, completion, &error)
       case .subscribe(let batch):
         batch.send(to: proxy, completion: completion, error: &error)
       case .unsubscribe(let subscriber, let names):
-        ParedPerformUnsubscribe(proxy, subscriber, names, completion, &error)
+        paredPerformUnsubscribe(proxy, subscriber, names, completion, &error)
       }
     guard sent else {
       if let error { throw error }
