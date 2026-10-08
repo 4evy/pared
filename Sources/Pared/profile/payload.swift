@@ -1,12 +1,11 @@
 import Foundation
 
 func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: ManagementValue]] {
-  var values: [String: [String: ManagementValue]] = [:]
-  for (name, feature) in policy.managedFeatures(in: catalog) {
-    for preference in feature.preferences {
-      values[preference.domain, default: [:]][preference.key] =
-        .boolean(preference.value(for: policy.state(name)))
-    }
+  let assignments = policy.preferenceAssignments(in: catalog, for: catalog.features.keys)
+  var values = Dictionary(grouping: assignments, by: { $0.preference.domain }).mapValues {
+    Dictionary(
+      $0.map { ($0.preference.key, ManagementValue.boolean($0.value)) },
+      uniquingKeysWith: { _, requested in requested })
   }
   // mobileassetd can read managed preferences, but its sandbox denies ordinary
   // defaults. Block the same sets selected for cleanup so an enabled or

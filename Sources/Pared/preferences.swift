@@ -29,49 +29,63 @@ func preferenceStatus(_ preference: Preference) -> PreferenceStatus {
     value: value?.boolValue, forced: CFPreferencesAppValueIsForced(key, domain))
 }
 
+struct PreferenceAssignment {
+  let featureName: String
+  let preference: Preference
+  let value: Bool
+}
+
+extension Policy {
+  // Include unmanaged features only when removing their local overrides
+  func preferenceAssignments(
+    in catalog: Catalog, for names: some Sequence<String>, reset: Bool = false
+  ) -> [PreferenceAssignment] {
+    names.flatMap { name -> [PreferenceAssignment] in
+      let state = state(name)
+      guard reset || state != .unmanaged else { return [] }
+      return catalog.features[name]!.preferences.map { preference in
+        PreferenceAssignment(
+          featureName: name, preference: preference,
+          value: preference.value(for: state))
+      }
+    }
+  }
+}
+
 func validateDownloadPreferences(policy: Policy, catalog: Catalog, names: [String])
   throws(CLIError)
 {
-  // Reject downloads that conflict with enforced preferences.
+  // Reject downloads that conflict with enforced preferences
   // Policy edits must still succeed so the user can generate a replacement
   // profile that permits the download
-  for name in names {
-    guard policy.state(name) != .unmanaged else { continue }
-    for preference in catalog.features[name]!.preferences {
-      let status = preferenceStatus(preference)
-      let desired = preference.value(for: policy.state(name))
-      if status.forced && status.value != desired {
-        throw CLIError(
-          "\(name) is forced by a management profile; update or remove that profile first")
-      }
+  for assignment in policy.preferenceAssignments(in: catalog, for: names) {
+    let status = preferenceStatus(assignment.preference)
+    if status.forced && status.value != assignment.value {
+      throw CLIError(
+        "\(assignment.featureName) is forced by a management profile; update or remove that profile first"
+      )
     }
   }
 }
 
 func applyPreferences(policy: Policy, catalog: Catalog, names: [String], reset: Bool = false) throws
 {
-  for name in names {
-    let state = policy.state(name)
-    guard reset || state != .unmanaged else { continue }
-    for preference in catalog.features[name]!.preferences {
-      // Write the requested local value even when the installed profile
-      // overrides it; the new value takes effect only after that override is
-      // removed
-      if preferenceStatus(preference).forced {
-        report("\(name) remains managed until the updated profile is installed")
-      }
-      let value: CFPropertyList? =
-        reset ? nil : NSNumber(value: preference.value(for: state))
-      CFPreferencesSetValue(
-        preference.key as CFString, value, preference.domain as CFString,
-        kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-      guard
-        CFPreferencesSynchronize(
-          preference.domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-      else {
-        throw CLIError(
-          "Could not synchronize \(preference.domain); earlier writes may have succeeded")
-      }
+  for assignment in policy.preferenceAssignments(in: catalog, for: names, reset: reset) {
+    let preference = assignment.preference
+    // Write the requested local value even when the installed profile
+    // overrides it; the new value takes effect after that override is removed
+    if preferenceStatus(preference).forced {
+      report("\(assignment.featureName) remains managed until the updated profile is installed")
+    }
+    CFPreferencesSetValue(
+      preference.key as CFString, reset ? nil : NSNumber(value: assignment.value),
+      preference.domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+    guard
+      CFPreferencesSynchronize(
+        preference.domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+    else {
+      throw CLIError(
+        "Could not synchronize \(preference.domain); earlier writes may have succeeded")
     }
   }
 }
