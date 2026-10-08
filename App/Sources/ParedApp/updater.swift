@@ -34,15 +34,15 @@ final class SparkleUpdateController: NSObject, ParedUpdateControlling, SPUUpdate
     try loaded.updater.start()
     controller = loaded
     let updater = loaded.updater
-    observation = updater.publisher(for: \.canCheckForUpdates).map { _ in () }
-      .merge(
-        with: updater.publisher(for: \.automaticallyChecksForUpdates).map { _ in () },
-        updater.publisher(for: \.automaticallyDownloadsUpdates).map { _ in () },
-        updater.publisher(for: \.lastUpdateCheckDate).map { _ in () }
-      )
-      .sink { _ in
-        Task { @MainActor in stateChanged() }
-      }
+    observation = Publishers.CombineLatest4(
+      updater.publisher(for: \.canCheckForUpdates),
+      updater.publisher(for: \.automaticallyChecksForUpdates),
+      updater.publisher(for: \.automaticallyDownloadsUpdates),
+      updater.publisher(for: \.lastUpdateCheckDate)
+    )
+    .sink { _ in
+      Task { @MainActor in stateChanged() }
+    }
   }
 
   func checkForUpdates() {
