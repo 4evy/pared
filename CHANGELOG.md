@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## 2.1.0 — 2026-10-08
+
+### Added
+
+- `pared models inventory` for daemon-reported asset paths and parsed metadata,
+  supplemented with matching metadata from Apple's published catalogs
+- `pared models holders` for inspecting apps and services with selected model
+  files open
+- Model-holder review after unsuccessful cleanup in the app and wizard, with
+  administrator inspection, normal app quit, and a reviewed force-quit option
+  that retries removal once
+
+### Changed
+
+- Cleanup distinguishes remaining model folders (exit 1) from unavailable
+  verification after an accepted removal request (exit 3), with folder access
+  guidance and separate reporting of daemon elimination evidence
+- The private Apple asset bridge is implemented in Swift, retaining runtime
+  method-signature and value checks
+- Build, release, inspection, and demo tools are grouped into named directories
+
+### Fixed
+
+- Model inventory can verify empty protected folders or use daemon-reported
+  paths when filesystem metadata accounts for every directory entry
+- Model status skips the download snapshot query when no payloads remain,
+  avoiding errors from an absent atomic-instance lock file
+- Cleanup succeeds when every selected model folder is confirmed gone, even if
+  macOS retained an earlier lock error after forced removal
+- App diagnostics preserve CLI error descriptions
+
 ## 2.0.0 — 2026-10-06
 
 ### Added
