@@ -42,15 +42,30 @@ struct ModelStatus: Codable {
   let queryError: String?
   let localSnapshot: LocalDownloadStatus?
   let payloadDirectories: [String]?
+  let directoryEntries: [String]?
   let inventoryError: String?
 
   var hasErrors: Bool { queryError != nil || inventoryError != nil }
 }
 
-// A missing type directory means no payloads; unreadable directories remain
-// errors so cleanup cannot mistake denied access for successful removal
+func modelInventoryAccessDenied(_ error: Error, depth: Int = 0) -> Bool {
+  guard depth < 8 else { return false }
+  let error = error as NSError
+  if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError {
+    return true
+  }
+  if error.domain == NSPOSIXErrorDomain && (error.code == Int(EACCES) || error.code == Int(EPERM)) {
+    return true
+  }
+  guard let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError else { return false }
+  return modelInventoryAccessDenied(underlying, depth: depth + 1)
+}
+
+// Missing directories and metadata-proven empty layouts contain no payloads
+// Broker paths require complete metadata coverage; unknown layouts stay errors
 func modelPayloadDirectories(
-  assetType: String, root: URL = UnifiedAssets.assetDirectory
+  assetType: String, root: URL = UnifiedAssets.assetDirectory,
+  broker: ModelBrokerInventory? = nil
 ) throws -> [String] {
   let directory = root.appendingPathComponent(
     assetType.replacingOccurrences(of: ".", with: "_"), isDirectory: true)
@@ -60,6 +75,14 @@ func modelPayloadDirectories(
     }
     _ = try FileManager.default.contentsOfDirectory(atPath: directory.path)
   } catch {
+    if modelInventoryAccessDenied(error), modelDirectoryIsProvablyEmpty(directory) {
+      return []
+    }
+    if modelInventoryAccessDenied(error), root == UnifiedAssets.assetDirectory,
+      let entries = (broker ?? ModelBrokerInventory()).entries(in: directory)
+    {
+      return entries.filter { $0.hasSuffix(".asset") }
+    }
     let fileError = error as NSError
     if fileError.domain == NSCocoaErrorDomain && fileError.code == NSFileReadNoSuchFileError {
       return []
@@ -104,7 +127,24 @@ func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] 
   else { throw CLIError("Cannot load UnifiedAssetFramework") }
   let assets = try catalog.modelAssets(targets)
   for asset in assets { try asset.validateConfiguration() }
+  let broker = ModelBrokerInventory()
   return assets.map { asset in
+    var payloads: [String]?
+    var inventoryError: String?
+    do {
+      payloads = try modelPayloadDirectories(assetType: asset.assetType, broker: broker)
+    } catch {
+      inventoryError =
+        modelInventoryAccessDenied(error)
+        ? "macOS denied access to the model folder, and a complete broker inventory could not be verified. System-protected model storage can require restricted entitlements that sudo and Full Disk Access cannot supply. Folder inventory is unavailable; this does not show whether models are in use."
+        : error.localizedDescription
+    }
+    // An empty inventory needs no atomic-instance lock or download snapshot
+    if payloads?.isEmpty == true {
+      return ModelStatus(
+        assetSet: asset.name, assetType: asset.assetType, queryError: nil,
+        localSnapshot: nil, payloadDirectories: [], directoryEntries: nil, inventoryError: nil)
+    }
     var queryError: String?
     var snapshot: LocalDownloadStatus?
     do {
@@ -117,15 +157,12 @@ func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] 
       snapshot = LocalDownloadStatus(status)
     } catch { queryError = String(describing: error) }
 
-    var payloads: [String]?
-    var inventoryError: String?
-    do {
-      // Stop at asset containers because their contents can be unreadable
-      payloads = try modelPayloadDirectories(assetType: asset.assetType)
-    } catch { inventoryError = String(describing: error) }
+    let directory = UnifiedAssets.assetDirectory.appendingPathComponent(
+      asset.assetType.replacingOccurrences(of: ".", with: "_"), isDirectory: true)
     return ModelStatus(
       assetSet: asset.name, assetType: asset.assetType, queryError: queryError,
       localSnapshot: snapshot, payloadDirectories: payloads,
+      directoryEntries: broker.listings[directory.path],
       inventoryError: inventoryError)
   }
 }

@@ -116,10 +116,91 @@ pared models cleanup
 Only groups whose known features are all disabled are removed. Shared models
 stay if any feature in Pared’s catalog is enabled or unmanaged.
 
-Cleanup fails if selected model folders remain or cannot be inspected. For
-models still in use, close affected apps, log out or restart, then check
-`pared models status` before retrying. Check status after timeouts too: removal
-may already have happened.
+Cleanup exits 1 if selected model folders remain. If macOS accepts removal but
+Pared cannot inspect the folders, it exits 3: removal is unverified. Pared warns
+before requesting removal if folder inspection is already unavailable. A folder
+access error does not show whether models are in use. Check Full Disk Access in
+System Settings -\> Privacy & Security for your terminal app (or Pared when
+using the GUI), then quit and reopen it before running `pared models status`
+again. Checking status does not repeat removal.
+
+When folder verification is unavailable, cleanup also checks recent MobileAsset
+daemon logs. It reports completed elimination only when every selected asset
+type has a successful completion and a matching request with no remaining
+payload descriptors or locked payloads. Missing, unreadable, or changed log
+records remain inconclusive. This confirms the daemon's result; it does not
+independently verify protected folders or measure reclaimed space, so exit 3
+still applies. Pared does not repeat deletion to obtain these records.
+
+Full Disk Access entries for ad-hoc builds can trust an older binary; remove
+and re-add the current app if its permission stopped working after a rebuild.
+Some model storage also requires restricted Apple entitlements. Sudo and Full
+Disk Access cannot supply those, so folder verification can remain unavailable
+even with both enabled.
+
+If listing is denied, Pared tries directory entry-count metadata. It can verify
+an empty type directory, or a type directory containing only an empty
+`purpose_auto` directory. It rejects symbolic links and retains the access error
+for unfamiliar or unreadable layouts. For nonempty protected storage, Pared
+asks Apple's subscription daemon for asset paths, then checks each candidate
+with filesystem metadata. It accepts the known `purpose_auto` layout only when
+the asset directories and observed XML catalog account for every entry, with
+unchanged directory identity, entry counts, and modification/change times.
+Missing candidates, extra entries, and symbolic links leave inventory unknown.
+`models status` includes `directoryEntries` when this broker listing succeeds.
+When inventory proves there are no payloads, status skips the atomic-instance
+query that would otherwise fail because its lock file is absent. This does not
+grant access to model files.
+
+Ask the daemon for paths and parsed asset metadata:
+
+```sh
+pared models inventory
+pared models inventory --asset-type com.apple.MobileAsset.UAF.FM.Overrides
+```
+
+This is a read-only broker view. `reportedAssets` contains Apple's reported
+locations and metadata; it does not contain the original `Info.plist` or XML
+catalog bytes. Archive decryption keys are omitted. An empty or partial daemon
+reply cannot establish an empty directory. The daemon omits some file fields,
+including download and retention policies, so `metadataFileContentsComplete`
+remains false. `directoryListingComplete` is true
+only when filesystem metadata verifies coverage, proves an empty known layout,
+or confirms that the type directory does not exist.
+Incomplete coverage exits 1 and includes `inventoryError`. The command does not
+subscribe, download, remove models, or retain asset locks.
+
+For reported assets, inventory automatically reads Apple's configured catalog
+endpoint and audience, then makes an HTTPS metadata request. It sends the device
+model, hardware model, OS version, and OS build, without serial numbers or other
+unique device identifiers. Each request has a 32 MiB response limit and a
+35-second resource timeout. It does not download model archives or cache the
+response on disk.
+
+Each `reportedAssets` entry gets `catalogMetadata` only when its asset type,
+specifier, version, and archive ID match, every shared broker field agrees, and
+all compatible catalog entries have identical metadata. Uncompared local broker
+annotations appear in `catalogUncomparedBrokerFields`. Archive decryption keys
+remain omitted. `catalogSource`, `catalogAssetSetID`, and `catalogPostingDate`
+describe the published catalog; they do not prove the local catalog's cached
+state or file contents.
+
+`catalogMetadataMatched` means every reported asset has a compatible,
+unambiguous published metadata record. It does not establish directory coverage
+or a read of the original files: `directoryListingComplete` and
+`metadataFileContentsComplete` retain their separate meanings. A missing asset,
+conflicting field, ambiguous metadata, or unavailable catalog leaves the catalog
+match incomplete and exits 1. A verified empty inventory needs no catalog
+request and reports zero matched assets. An empty broker view with incomplete
+directory coverage remains incomplete and exits 1.
+
+macOS can retain an initial lock error after its forced removal succeeds. If
+Pared confirms that every selected model folder is gone, cleanup succeeds
+without offering to quit processes.
+
+For models confirmed to be in use, close affected apps, log out or restart, then
+check `pared models status` before retrying. Check status after timeouts too:
+removal may already have happened.
 
 Keep the profile installed to block new downloads. Pared checks folders, not
 recovered APFS space; System Settings may update its storage total later.

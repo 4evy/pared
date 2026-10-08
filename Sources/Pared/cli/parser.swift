@@ -166,14 +166,20 @@ private struct ModelsCommand: ParsableCommand {
     commandName: "models", abstract: "Inspect, download, or remove model sets",
     discussion: """
       Cleanup removes sets only when all known consumers are disabled.
-      Cleanup checks remaining model folders; locked or unreadable files prevent
-      a successful result. Close affected apps or restart before checking again.
+      Cleanup checks remaining model folders. Remaining folders exit 1;
+      unavailable verification after an accepted removal request exits 3.
+      Folder access errors do not prove models are in use. Check Full Disk Access
+      for the app running Pared, reopen it, then check models status again.
+      System-protected model folders can remain inaccessible with sudo and
+      Full Disk Access; neither supplies restricted Apple entitlements.
+      For confirmed locks, close affected apps or restart before checking again.
       Download requires an enabled feature with a catalog download mapping.
       An accepted request does not mean the download has finished.
       Status reports a snapshot, not live progress; query or inventory errors exit 1.
       """,
     subcommands: [
       ModelsStatusCommand.self, ModelsDownloadCommand.self, ModelsCleanupCommand.self,
+      ModelsInventoryCommand.self,
       ModelsCheckCommand.self,
     ])
 }
@@ -184,6 +190,52 @@ private struct ModelsStatusCommand: PolicyCommand {
   @OptionGroup var options: PolicyOptions
   @Argument(help: "Feature names or 'all'; omit to inspect every feature", completion: .features)
   var features: [String] = []
+}
+
+private struct ModelsInventoryCommand: ParsableCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "inventory",
+    abstract: "Ask Apple's daemon for asset paths and parsed metadata",
+    discussion: """
+      Directory names are complete only when filesystem metadata accounts for
+      every entry. Metadata is the daemon's parsed view, not the original
+      Info.plist or XML catalog bytes. Decryption keys are omitted.
+      This command does not subscribe, download, remove assets, or hold locks.
+      Incomplete directory coverage exits 1 and remains labeled incomplete.
+      For reported assets, this fetches Apple's published metadata over the network
+      and matches exact installed assets. It sends the device model and OS version,
+      without device identifiers. Verified empty inventories need no catalog request.
+      Unmatched or ambiguous catalog metadata exits 1; local file bytes remain unread.
+      """)
+  @Argument(help: "Feature names or 'all'; omit to inspect every feature", completion: .features)
+  var features: [String] = []
+  @Option(help: "Inspect a specific UAF asset type instead of selecting features")
+  var assetType: String?
+
+  mutating func run() throws {
+    let types: [String]
+    if let assetType {
+      guard features.isEmpty,
+        assetType.wholeMatch(of: #/com\.apple\.MobileAsset\.UAF\.[A-Za-z0-9._-]*/#) != nil
+      else { throw ValidationError("Use --asset-type with a UAF type and no feature names") }
+      types = [assetType]
+    } else {
+      let catalog = try Catalog.load()
+      let names = try catalog.selectedFeatureNames(features)
+      let targets = catalog.assetSets(for: names.isEmpty ? catalog.featureNames : names)
+      types = try catalog.modelAssets(targets).map(\.assetType)
+    }
+    let broker = ModelBrokerInventory()
+    let reports = types.map { type in
+      let inventory = broker.report(assetType: type)
+      let supplemented = modelCatalogMetadata(inventory.object)
+      return (object: supplemented.object, complete: inventory.complete && supplemented.complete)
+    }
+    let data = try JSONSerialization.data(
+      withJSONObject: reports.map(\.object), options: [.prettyPrinted, .sortedKeys])
+    FileHandle.standardOutput.write(data + Data([10]))
+    if reports.contains(where: { !$0.complete }) { throw ExitCode(1) }
+  }
 }
 
 private struct ModelsDownloadCommand: PolicyCommand {

@@ -92,6 +92,7 @@ extension ModelStatus {
     if payloadDirectories?.isEmpty == false { return "Local assets reported" }
     if inventoryError != nil { return "Folder inventory unavailable" }
     if queryError != nil { return "Status unavailable" }
+    if payloadDirectories?.isEmpty == true { return "No local assets reported" }
     guard let snapshot = localSnapshot else { return "Status unknown" }
     if snapshot.downloadedFilesystemBytes > 0 {
       return "Local assets reported"

@@ -6,6 +6,7 @@ enum ExitStatus: Int32 {
   case success = 0
   case failure = 1
   case outcomeUnknown = 2
+  case verificationUnavailable = 3
   case unavailable = 69
 }
 

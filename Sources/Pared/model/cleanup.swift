@@ -24,6 +24,22 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     return .unavailable
   }
   if !check {
+    let broker = ModelBrokerInventory()
+    // Warn before cancelling subscriptions or requesting removal, since the
+    // reset reply cannot substitute for an unreadable payload inventory
+    for asset in assets {
+      do {
+        _ = try modelPayloadDirectories(assetType: asset.assetType, broker: broker)
+      } catch {
+        let reason =
+          modelInventoryAccessDenied(error)
+          ? "macOS denied access to the model folder"
+          : error.localizedDescription
+        report(
+          "\(catalog.modelTitle(asset.name)): \(reason). Folder verification is unavailable before removal. The request can proceed, but an accepted reply alone will not confirm deletion."
+        )
+      }
+    }
     // Cancel Pared's subscriptions for the selected sets so they do not request
     // the models again; leave subscriptions owned by Apple or other apps alone
     let selected = Set(targets)
@@ -37,6 +53,7 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     guard result == .success else { return result }
   }
   // Never omit AssetSets: the server interprets nil as every asset set
+  let resetStarted = Date()
   let result = modelOperation(.reset(assetSets: targets)) { error, reply in
     if check {
       let missing = error?.userInfo[UnifiedAssets.checkTarget] as? NSError
@@ -52,7 +69,7 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     } else if let error {
       if removalHasLocks(error) {
         report(
-          "macOS reports models still in use. Close affected apps, log out or restart, then check pared models status before retrying cleanup. Keep the matching profile installed to block downloads."
+          "macOS reported locks during removal. Its reset routine can retain that error after attempting forced removal, so check model folders before assuming the locks remain. Keep the matching profile installed to block downloads."
         )
       }
       reply.finish(
@@ -60,13 +77,29 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     } else {
       reply.finish(
         .success,
-        message: "Reset returned successfully; checking remaining model folders")
+        message: "macOS accepted the removal request; checking whether model folders remain")
     }
   }
   // Do not follow an unknown transport outcome with another request or label
   // daemon acknowledgement as deletion. Inventory reads do not hold UAF locks
   guard !check, result == .success || result == .failure else { return result }
-  let inventory = verifyModelRemoval(assets)
+  let titles = Dictionary(
+    assets.map { ($0.name, catalog.modelTitle($0.name)) }, uniquingKeysWith: { first, _ in first })
+  let inventory = verifyModelRemoval(assets, titles: titles)
+  // Reset can retain its initial lock error after forced removal succeeds
+  // A readable, empty inventory establishes the requested outcome anyway
+  if inventory == .success { return .success }
+  if inventory == .verificationUnavailable {
+    let types = Set(assets.map(\.assetType))
+    let evidence = modelEliminationEvidence(since: resetStarted, assetTypes: types)
+    if evidence.assetTypes == types {
+      report(ModelEliminationEvidence.confirmation)
+      report(
+        "The daemon reported no remaining matching payload descriptors or locked payloads. Direct folder verification and reclaimed disk space remain unavailable."
+      )
+      return .verificationUnavailable
+    }
+  }
   return result == .success ? inventory : result
 }
 
@@ -84,30 +117,55 @@ func removalHasLocks(_ error: NSError, depth: Int = 0) -> Bool {
   }
 }
 
+private enum ModelRemovalObservation: Hashable {
+  case removed, remaining, unavailable, accessDenied
+}
+
 func verifyModelRemoval(
-  _ assets: [ModelAssetSet], root: URL = UnifiedAssets.assetDirectory
+  _ assets: [ModelAssetSet], root: URL = UnifiedAssets.assetDirectory,
+  titles: [String: String] = [:]
 ) -> ExitStatus {
-  var complete = true
-  for asset in assets {
-    do {
-      let paths = try modelPayloadDirectories(assetType: asset.assetType, root: root)
-      if !paths.isEmpty {
-        complete = false
-        report("\(asset.name): \(paths.count) model folder(s) remain; removal is incomplete")
+  let broker = ModelBrokerInventory()
+  let observations = Set(
+    assets.map { asset -> ModelRemovalObservation in
+      let title = titles[asset.name] ?? asset.name
+      do {
+        let paths = try modelPayloadDirectories(
+          assetType: asset.assetType, root: root, broker: broker)
+        guard !paths.isEmpty else { return .removed }
+        report("\(title): \(paths.count) model folder(s) remain; removal is incomplete")
+        return .remaining
+      } catch {
+        if modelInventoryAccessDenied(error) {
+          report(
+            "\(title): macOS denied access to the model folder; removal could not be checked")
+          return .accessDenied
+        }
+        report("\(title): removal could not be checked: \(error.localizedDescription)")
+        return .unavailable
       }
-    } catch {
-      complete = false
-      report("\(asset.name): cannot verify removal: \(error)")
-    }
-  }
-  if complete {
+    })
+  let remaining = observations.contains(.remaining)
+  let accessDenied = observations.contains(.accessDenied)
+  let unreadable = !observations.isDisjoint(with: [.unavailable, .accessDenied])
+  if !remaining && !unreadable {
     report("No model folders remain for the selected sets; reclaimed disk space was not measured")
-  } else {
+  }
+  if accessDenied {
+    report("A folder access error does not mean models are in use or that removal failed.")
     report(
-      "Check pared models status and MobileAsset deletion logs. macOS may defer deletion of files still in use; close affected apps or restart before checking again."
+      "Check Full Disk Access in System Settings > Privacy & Security for the current Pared build or terminal app, then reopen it. System-protected model storage can also require restricted entitlements that sudo and Full Disk Access cannot supply. Run pared models status to check again without repeating removal."
     )
   }
-  return complete ? .success : .failure
+  if remaining {
+    report(
+      "macOS may still be finishing removal or keeping models in use. Check pared models status again; if folders remain, inspect MobileAsset deletion logs for locks before closing apps or restarting."
+    )
+  } else if unreadable {
+    report("Removal is unverified; Pared could not inspect every selected model folder.")
+  }
+  if remaining { return .failure }
+  return unreadable ? .verificationUnavailable : .success
 }
 
 func modelOperation(
