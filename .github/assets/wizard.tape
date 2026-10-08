@@ -1,4 +1,4 @@
-# Run tools/record-wizard.sh from the repository root
+# Run tools/wizard/wizard.sh from the repository root
 # This walkthrough discards its draft and declines model removal
 Output .github/assets/wizard.gif
 

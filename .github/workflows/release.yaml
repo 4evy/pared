@@ -39,7 +39,7 @@ jobs:
       - name: Build CLI and Finder app
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-        run: sh scripts/package-release.sh
+        run: sh scripts/release/release.sh
 
       - name: Publish release downloads
         env:

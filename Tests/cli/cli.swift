@@ -158,7 +158,7 @@ private final class ModelPolicyTests {
 }
 
 guard CommandLine.arguments.count == 2 else {
-  FileHandle.standardError.write(Data("Usage: swift Tests/test_cli.swift PARED_BINARY\n".utf8))
+  FileHandle.standardError.write(Data("Usage: swift Tests/cli/cli.swift PARED_BINARY\n".utf8))
   exit(1)
 }
 private let checks: [(String, (ModelPolicyTests) throws -> Void)] = [

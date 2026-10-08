@@ -37,7 +37,7 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck = true;
   checkPhase = ''
     runHook preCheck
-    swift Tests/test_cli.swift .build/release/pared
+    swift Tests/cli/cli.swift .build/release/pared
     runHook postCheck
   '';
   installPhase = ''

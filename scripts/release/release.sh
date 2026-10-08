@@ -26,7 +26,7 @@ if [ "${CI:-}" = true ] && [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
 	exit 1
 fi
 # Require curated notes before spending time building or signing a release
-swift scripts/release-notes.swift "$version" >"$output/release-notes.md"
+swift scripts/release/notes.swift "$version" >"$output/release-notes.md"
 stage=$(mktemp -d "${TMPDIR:-/tmp}/pared-release.XXXXXX")
 trap 'rm -rf "$stage"' 0
 trap 'exit 130' INT
@@ -42,7 +42,7 @@ codesign --force --sign - "$stage/pared"
 
 tar -czf "$output/pared-macos-arm64.tar.gz" -C "$stage" pared pared_Pared.bundle
 # Keep the Finder app separate from the terminal bootstrap's payload
-sh tools/build-app.sh release
+sh tools/app/app.sh release
 sparkle_tools="$(pwd)/App/.build/artifacts/sparkle/Sparkle/bin"
 codesign --verify --deep --strict .build/Pared.app
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent \

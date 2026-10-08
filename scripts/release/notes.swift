@@ -6,7 +6,7 @@ do {
     throw NSError(
       domain: "release-notes", code: 1,
       userInfo: [
-        NSLocalizedDescriptionKey: "Usage: swift scripts/release-notes.swift VERSION"
+        NSLocalizedDescriptionKey: "Usage: swift scripts/release/notes.swift VERSION"
       ])
   }
   let version = CommandLine.arguments[1]

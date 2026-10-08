@@ -2,12 +2,12 @@
 set -eu
 
 # Build a Finder-launchable app with a standalone CLI for the guided installer
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 configuration="${1:-release}"
 case "$configuration" in
 debug | release) ;;
 *)
-	printf 'Usage: tools/build-app.sh [debug|release]\n' >&2
+	printf 'Usage: tools/app/app.sh [debug|release]\n' >&2
 	exit 64
 	;;
 esac
@@ -49,7 +49,7 @@ rm -rf "$app_directory/Contents/Frameworks/Sparkle.framework"
 # Embed the framework SwiftPM linked, preserving its signed helpers and symlinks
 cp -R "$binary_directory/Sparkle.framework" "$app_directory/Contents/Frameworks/"
 rm -rf "$app_directory/Contents/PlugIns/ParedUpdater.bundle"
-swift tools/app-icon.swift .build/Pared.iconset
+swift tools/app/icon.swift .build/Pared.iconset
 iconutil --convert icns .build/Pared.iconset --output "$app_directory/Contents/Resources/AppIcon.icns"
 cat >"$app_directory/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

@@ -133,7 +133,7 @@ private final class ActivationTests {
 
 guard CommandLine.arguments.count == 2 else {
   FileHandle.standardError.write(
-    Data("Usage: swift Tests/test_activation.swift ACTIVATION_SCRIPT\n".utf8))
+    Data("Usage: swift Tests/activation/activation.swift ACTIVATION_SCRIPT\n".utf8))
   exit(1)
 }
 private let checks: [(String, (ActivationTests) throws -> Void)] = [

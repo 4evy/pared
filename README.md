@@ -98,7 +98,7 @@ See the [Nix setup guide](https://4evy.github.io/pared/docs/#quick-start) and
 With Xcode 27 or newer, run from this checkout:
 
 ```sh
-tools/build-app.sh
+tools/app/app.sh
 open .build/Pared.app
 ```
 

@@ -2,7 +2,7 @@
 set -eu
 
 # Replay the README demo with a disposable policy and no preference writes
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 command -v vhs >/dev/null
 command -v ffmpeg >/dev/null
 command -v cwebp >/dev/null
