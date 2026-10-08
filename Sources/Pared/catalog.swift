@@ -198,8 +198,9 @@ struct Catalog: Decodable {
   }
 }
 
-struct CLIError: Error, CustomStringConvertible {
+struct CLIError: LocalizedError, CustomStringConvertible {
   let description: String
+  var errorDescription: String? { description }
   init(_ description: String) { self.description = description }
 }
 
