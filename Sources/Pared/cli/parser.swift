@@ -180,8 +180,23 @@ private struct ModelsCommand: ParsableCommand {
     subcommands: [
       ModelsStatusCommand.self, ModelsDownloadCommand.self, ModelsCleanupCommand.self,
       ModelsInventoryCommand.self,
-      ModelsCheckCommand.self,
+      ModelsCheckCommand.self, ModelsHoldersCommand.self, ModelsHolderOperationCommand.self,
     ])
+}
+
+private struct ModelsHolderOperationCommand: AsyncParsableCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "holder-operation", shouldDisplay: false)
+  @Argument var request: String
+
+  mutating func run() async throws {
+    guard request.count <= 64 * 1024, let data = Data(base64Encoded: request) else {
+      throw CLIError("Invalid model-holder request")
+    }
+    let operation = try JSONDecoder().decode(ModelHolderRequest.self, from: data)
+    let response = try await runModelHolderRequest(operation)
+    FileHandle.standardOutput.write(try jsonData(response))
+  }
 }
 
 private struct ModelsStatusCommand: PolicyCommand {
@@ -235,6 +250,27 @@ private struct ModelsInventoryCommand: ParsableCommand {
       withJSONObject: reports.map(\.object), options: [.prettyPrinted, .sortedKeys])
     FileHandle.standardOutput.write(data + Data([10]))
     if reports.contains(where: { !$0.complete }) { throw ExitCode(1) }
+  }
+}
+
+private struct ModelsHoldersCommand: AsyncParsableCommand {
+  static let configuration = CommandConfiguration(
+    commandName: "holders", abstract: "Inspect apps and services with selected model files open",
+    discussion:
+      "Observed open files do not prove which process blocked removal. Process visibility depends on your privileges; missing entries do not prove that models have no locks. This command does not quit apps or remove models."
+  )
+  @Argument(help: "Feature names or 'all'; omit to inspect every feature", completion: .features)
+  var features: [String] = []
+
+  mutating func run() async throws {
+    let catalog = try Catalog.load()
+    let names = try catalog.selectedFeatureNames(features)
+    let targets = catalog.assetSets(for: names.isEmpty ? catalog.featureNames : names)
+    let holders = try await modelHolders(catalog.modelAssets(targets))
+    FileHandle.standardOutput.write(try jsonData(holders))
+    report(
+      "Open-file snapshot only; visibility depends on privileges. This command does not quit processes."
+    )
   }
 }
 

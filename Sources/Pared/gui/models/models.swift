@@ -230,8 +230,14 @@ private struct ModelSnapshotDetail: View {
   }
 }
 
+struct ModelCleanupOffer: Identifiable {
+  let id = UUID()
+  let targets: [String]
+}
+
 struct CleanupReview: View {
   @Bindable var store: GUIStore
+  let review: ModelCleanupOffer
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -240,7 +246,7 @@ struct CleanupReview: View {
         description: "Your saved choices turn off every feature Pared knows uses these models.",
         symbol: "internaldrive")
       VStack(alignment: .leading, spacing: 10) {
-        ForEach(store.cleanupReview ?? [], id: \.self) { asset in
+        ForEach(review.targets, id: \.self) { asset in
           Label(store.modelTitle(asset), systemImage: "cube")
         }
       }

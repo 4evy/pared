@@ -22,6 +22,15 @@ private enum WizardStepAction: String, CaseIterable, CustomStringConvertible {
   var description: String { rawValue }
 }
 
+private enum WizardModelQuitAction: String, CaseIterable, CustomStringConvertible {
+  case keep = "Keep apps open"
+  case inspect = "Inspect holders with administrator access"
+  case force = "Force quit listed holders and retry removal"
+  case normal = "Ask listed apps to quit normally and check model folders"
+
+  var description: String { rawValue }
+}
+
 private enum WizardSetupStep: String, CaseIterable {
   case features = "Choose features"
   case profile = "Apply settings"
@@ -149,7 +158,7 @@ private struct Wizard {
         case .status: try showPolicy()
         case .profile: _ = try openProfile()
         case .cleanup:
-          let cleanupResult = try cleanup()
+          let cleanupResult = try await cleanup()
           if cleanupResult.status != .success { result = cleanupResult.status }
         case .finish: return result
         }
@@ -209,7 +218,7 @@ private struct Wizard {
           try openProfile()
             ? "Profile: opened; finish installation in System Settings" : "Profile: not opened")
       case .models:
-        let cleanupResult = try cleanup()
+        let cleanupResult = try await cleanup()
         if cleanupResult.status != .success { result = cleanupResult.status }
         summary.append(
           cleanupResult.requested
@@ -492,7 +501,7 @@ private struct Wizard {
     return true
   }
 
-  private func cleanup() throws -> (status: ExitStatus, requested: Bool) {
+  private func cleanup() async throws -> (status: ExitStatus, requested: Bool) {
     try requireSavedPolicy()
     let policy = try policy()
     let targets = policy.cleanupTargets(catalog)
@@ -529,6 +538,11 @@ private struct Wizard {
     if result == .success {
       ui.info(
         "No model folders remain for the selected sets. Reclaimed disk space was not measured.")
+    } else if result == .verificationUnavailable {
+      ui.warning(
+        "Removal requested; verification unavailable. macOS accepted the request, but Pared could not inspect every selected model folder.",
+        "Follow the folder access guidance above, then run pared models status. You do not need to repeat removal just to check."
+      )
     } else {
       ui.error(
         .alert(
@@ -536,6 +550,77 @@ private struct Wizard {
           takeaways: [
             "Partial removal or an unknown request outcome is possible. Inspect the diagnostics above before trying again."
           ]))
+    }
+    if result == .failure {
+      do {
+        let assets = try catalog.modelAssets(targets)
+        var holders = try await modelHolders(assets)
+        while true {
+          if !holders.isEmpty {
+            panel(
+              "\(.accent("Processes with selected model files open"))",
+              lines: holders.map { holder in
+                TerminalText(
+                  stringLiteral:
+                    "• \(holder.name) (PID \(holder.pid))"
+                    + (holder.canForceQuit ? "" : " — identity unavailable; cannot force quit"))
+              } + ["Open files do not prove which process blocked removal."])
+          }
+          var options: [WizardModelQuitAction] = [.keep, .inspect]
+          if holders.contains(where: \.canForceQuit) { options.append(.force) }
+          if holders.contains(where: \.canQuit) { options.append(.normal) }
+          let action: WizardModelQuitAction = ui.singleChoicePrompt(
+            title: "Processes using selected models", question: "How should Pared proceed?",
+            options: options,
+            description:
+              "Force quit can lose unsaved work or running requests. Administrator inspection can reveal system services. Force quit rechecks holders, then retries the reviewed removal once.",
+            renderer: WizardRenderer())
+          if action == .keep { break }
+          if action == .inspect {
+            try verifyPolicyUnchanged(policy)
+            let response = try await administratorModelHolders(
+              ModelHolderRequest(action: .inspect, assetSets: targets, reviewed: []))
+            holders = response.holders
+            if holders.isEmpty {
+              ui.info("No model holders were visible with administrator access.")
+            }
+            continue
+          }
+          if action == .force {
+            try verifyPolicyUnchanged(policy)
+            let request = ModelHolderRequest(
+              action: .force, assetSets: targets, reviewed: holders,
+              policyURL: policyURL, policySnapshot: try JSONEncoder().encode(policy))
+            let response =
+              request.requiresAdministrator
+              ? try await administratorModelHolders(request)
+              : try await runModelHolderRequest(request)
+            for message in response.messages { report(message) }
+            if !response.holders.isEmpty {
+              holders = response.holders
+              ui.warning("Model holders remain or restarted. Review them before another attempt.")
+              continue
+            }
+            try verifyPolicyUnchanged(policy)
+            let retried = resetModels(targets, catalog: catalog)
+            return (retried, true)
+          } else {
+            try verifyPolicyUnchanged(policy)
+            let messages = try await quitModelHolders(holders, assets: assets)
+            for message in messages { report(message) }
+            let checked = verifyModelRemoval(
+              assets,
+              titles: Dictionary(
+                uniqueKeysWithValues: assets.map {
+                  ($0.name, catalog.modelTitle($0.name))
+                }))
+            ui.info("Folders checked again. Review removal again if folders remain.")
+            return (checked == .success ? .success : result, true)
+          }
+        }
+      } catch {
+        ui.warning("Apps could not be inspected or quit: \(error.localizedDescription)")
+      }
     }
     return (result, true)
   }

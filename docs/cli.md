@@ -198,6 +198,34 @@ macOS can retain an initial lock error after its forced removal succeeds. If
 Pared confirms that every selected model folder is gone, cleanup succeeds
 without offering to quit processes.
 
+Inspect apps and services with selected model files open:
+
+```sh
+pared models holders
+```
+
+This prints an open-file snapshot as JSON. You can pass feature names to limit
+the selection. Open files do not prove which process blocked removal, and an
+empty result does not prove that there are no locks. Process visibility depends
+on privileges; running this read-only command with sudo can expose holders
+running under other accounts.
+
+After unsuccessful cleanup, the GUI and wizard offer administrator inspection
+to find holders running under other accounts. Review the listed processes and
+choose **Force Quit and Retry** to terminate holders and retry removal once.
+macOS requests administrator authentication when another account owns a holder.
+Save your work first: force quit can lose unsaved work or running requests.
+
+Pared rechecks the policy, process version, executable, and selected open files
+before signaling each holder. The kernel checks the process version again when
+delivering SIGKILL, so a reused PID does not become the target. If holders
+remain or restart, Pared shows them for review instead of killing them again.
+The retry uses the reviewed model sets and checks the resulting folders.
+Denied folder access still leaves removal unverified.
+
+Foreground apps also have a normal-quit option. Apps can show a save prompt or
+refuse; this option checks status without repeating removal.
+
 For models confirmed to be in use, close affected apps, log out or restart, then
 check `pared models status` before retrying. Check status after timeouts too:
 removal may already have happened.

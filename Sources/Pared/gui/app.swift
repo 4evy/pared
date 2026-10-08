@@ -229,13 +229,11 @@ struct ParedWindow: View {
       Alert(
         title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
     }
-    .sheet(
-      isPresented: Binding(
-        get: { store.cleanupReview != nil },
-        set: { if !$0 { store.cleanupReview = nil } }
-      )
-    ) {
-      CleanupReview(store: store)
+    .sheet(item: $store.cleanupReview) { review in
+      CleanupReview(store: store, review: review)
+    }
+    .sheet(item: $store.modelQuitReview) { review in
+      ModelQuitReview(store: store, review: review)
     }
     .sheet(item: $store.quickActionReview) { action in
       QuickActionReview(store: store, action: action)

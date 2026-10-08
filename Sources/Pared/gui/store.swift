@@ -40,7 +40,8 @@ final class GUIStore {
   private(set) var profileNeedsReplacement = false
   private(set) var lastDiagnostics = ""
   var issue: GUIIssue?
-  var cleanupReview: [String]?
+  var cleanupReview: ModelCleanupOffer?
+  var modelQuitReview: ModelQuitOffer?
   var quickActionReview: GUIQuickAction?
   private(set) var downloadPreparation: String?
 
@@ -403,28 +404,25 @@ final class GUIStore {
 
   func reviewCleanup() {
     guard canUseSavedPolicy, !cleanupTargets.isEmpty else { return }
-    busy = true
-    activity = "Preparing removal preview…"
-    Task {
-      do {
-        try verifyPolicyUnchanged()
-        let result = try await runner.run(
-          .cleanup, policyURL: policyURL, dryRun: true)
-        try result.requireSuccess()
-        let targets = try result.decode([String].self)
-        guard targets == cleanupTargets else {
-          throw CLIError("The removal preview changed. Refresh and review it again.")
-        }
-        cleanupReview = targets
-      } catch {
-        issue = GUIIssue(title: "Removal preview unavailable", message: String(describing: error))
+    performActivity(
+      title: "Preparing removal preview…", failureTitle: "Removal preview unavailable"
+    ) { [self] in
+      try verifyPolicyUnchanged()
+      let result = try await runner.run(
+        .cleanup, policyURL: policyURL, dryRun: true)
+      try result.requireSuccess()
+      let targets = try result.decode([String].self)
+      guard targets == cleanupTargets else {
+        throw CLIError("The removal preview changed. Refresh and review it again.")
       }
-      busy = false
+      cleanupReview = ModelCleanupOffer(targets: targets)
     }
   }
 
   func removeReviewedModels() {
-    guard canUseSavedPolicy, let reviewed = cleanupReview, !reviewed.isEmpty else { return }
+    guard canUseSavedPolicy, let reviewed = cleanupReview?.targets, !reviewed.isEmpty else {
+      return
+    }
     cleanupReview = nil
     guard reviewed == cleanupTargets else {
       issue = GUIIssue(
@@ -450,35 +448,153 @@ final class GUIStore {
     )
   }
 
+  private func performActivity(
+    title: String, failureTitle: String, refreshAfterward: Bool = false,
+    operation: @escaping @MainActor () async throws -> Void
+  ) {
+    busy = true
+    activity = title
+    Task {
+      defer { busy = false }
+      do {
+        try await operation()
+      } catch {
+        issue = GUIIssue(title: failureTitle, message: String(describing: error))
+      }
+      if refreshAfterward { await reload(replaceDraft: true) }
+    }
+  }
+
   private func perform(
     title: String, command: Command, names: [String] = [], success: String,
     reviewedTargets: [String]? = nil
   ) {
-    busy = true
-    activity = title
     notice = nil
-    Task {
-      do {
-        try verifyPolicyUnchanged()
-        let result: GUICommandResult
-        if let reviewedTargets {
-          result = try await runner.cleanup(
-            reviewedTargets: reviewedTargets, policy: policy, policyURL: policyURL)
-        } else {
-          result = try await runner.run(command, names: names, policyURL: policyURL)
+    performActivity(
+      title: title, failureTitle: "Operation could not be completed", refreshAfterward: true
+    ) { [self] in
+      try verifyPolicyUnchanged()
+      let result: GUICommandResult
+      if let reviewedTargets {
+        result = try await runner.cleanup(
+          reviewedTargets: reviewedTargets, policy: policy, policyURL: policyURL)
+      } else {
+        result = try await runner.run(command, names: names, policyURL: policyURL)
+      }
+      lastDiagnostics = result.diagnostics
+      if command == .cleanup,
+        result.terminationStatus == .exited(ExitStatus.verificationUnavailable.rawValue)
+      {
+        issue = GUIIssue(
+          title: result.diagnostics.contains(ModelEliminationEvidence.confirmation)
+            ? "Daemon reported elimination; folder verification unavailable"
+            : "Removal requested; verification unavailable",
+          message:
+            "macOS accepted the request, but Pared could not inspect every selected model folder. Check the folder access guidance below, then refresh model status. You do not need to repeat removal just to check.\n\n\(result.diagnostics)"
+        )
+      } else if command == .cleanup,
+        result.terminationStatus == .exited(ExitStatus.failure.rawValue),
+        let reviewedTargets, let catalog
+      {
+        let assets = try catalog.modelAssets(reviewedTargets)
+        let holders = try await modelHolders(assets)
+        if !holders.isEmpty {
+          lastDiagnostics +=
+            "\nProcesses with selected model files open:\n"
+            + holders.map {
+              "\($0.name) (PID \($0.pid))"
+                + ($0.canForceQuit ? "" : " — identity unavailable; cannot force quit")
+            }.joined(separator: "\n")
+            + "\nOpen files do not prove which process blocked removal."
         }
-        lastDiagnostics = result.diagnostics
+        modelQuitReview = ModelQuitOffer(assets: assets, holders: holders)
+      } else {
         try result.requireSuccess()
         if command == .download, let name = names.first, downloadPreparation == name {
           downloadPreparation = nil
         }
         notice = success
         noticeDestination = command.isModelCommand ? .overview : .profile
-      } catch {
-        issue = GUIIssue(
-          title: "Operation could not be completed", message: String(describing: error))
       }
-      await reload(replaceDraft: true)
+    }
+  }
+
+  func quitReviewedModelApps(force: Bool = false) {
+    guard !working, let review = modelQuitReview else { return }
+    modelQuitReview = nil
+    performActivity(
+      title: force ? "Force-quitting apps…" : "Asking apps to quit…",
+      failureTitle: "Model cleanup could not be completed", refreshAfterward: true
+    ) { [self] in
+      try verifyPolicyUnchanged()
+      guard Set(review.assets.map(\.name)).isSubset(of: Set(cleanupTargets)) else {
+        throw CLIError("The eligible models changed. Review removal again.")
+      }
+      let messages: [String]
+      let remaining: [ModelHolder]
+      if force {
+        let request = ModelHolderRequest(
+          action: .force, assetSets: review.assets.map(\.name), reviewed: review.holders,
+          policyURL: policyURL, policySnapshot: try JSONEncoder().encode(policy))
+        let response =
+          request.requiresAdministrator
+          ? try await administratorModelHolders(request)
+          : try await runModelHolderRequest(request)
+        messages = response.messages
+        remaining = response.holders
+      } else {
+        messages = try await quitModelHolders(review.holders, assets: review.assets)
+        remaining = try await modelHolders(review.assets)
+      }
+      lastDiagnostics += "\n" + messages.joined(separator: "\n")
+      if force && remaining.isEmpty {
+        try verifyPolicyUnchanged()
+        let targets = review.assets.map(\.name).sorted()
+        guard targets == cleanupTargets.sorted() else {
+          throw CLIError("The eligible models changed. Review removal again.")
+        }
+        let result = try await runner.cleanup(
+          reviewedTargets: cleanupTargets, policy: policy, policyURL: policyURL)
+        lastDiagnostics += "\n" + result.diagnostics
+        if result.terminationStatus == .exited(ExitStatus.verificationUnavailable.rawValue) {
+          issue = GUIIssue(
+            title: result.diagnostics.contains(ModelEliminationEvidence.confirmation)
+              ? "Daemon reported elimination; folder verification unavailable"
+              : "Removal requested; verification unavailable",
+            message:
+              "macOS accepted the retry, but Pared could not inspect every selected model folder. Check the folder access guidance below, then refresh model status.\n\n\(result.diagnostics)"
+          )
+        } else {
+          try result.requireSuccess()
+          notice =
+            "Holder recheck finished and removal was retried. No selected model folders remain."
+        }
+      } else if force {
+        modelQuitReview = ModelQuitOffer(assets: review.assets, holders: remaining)
+        notice =
+          "Model users remain or restarted. Review the current holders before another attempt."
+      } else {
+        notice = "Quit requests finished. Model status was refreshed; removal was not repeated."
+      }
+      noticeDestination = .models
+    }
+  }
+
+  func inspectModelHoldersAsAdministrator() {
+    guard !working, let review = modelQuitReview else { return }
+    busy = true
+    activity = "Inspecting model users with administrator access…"
+    Task {
+      do {
+        try verifyPolicyUnchanged()
+        let response = try await administratorModelHolders(
+          ModelHolderRequest(action: .inspect, assetSets: review.assets.map(\.name), reviewed: []))
+        modelQuitReview = ModelQuitOffer(assets: review.assets, holders: response.holders)
+      } catch {
+        modelQuitReview = nil
+        issue = GUIIssue(
+          title: "Model users could not be inspected", message: String(describing: error))
+      }
       busy = false
     }
   }
