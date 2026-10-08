@@ -64,7 +64,7 @@ func wizardSelectFeatures(options: [(id: String, label: String)]) -> [String] {
         case .printable(" "):
           if filtered.indices.contains(current) {
             let name = filtered[current].id
-            if selected.contains(name) { selected.remove(name) } else { selected.insert(name) }
+            if selected.remove(name) == nil { selected.insert(name) }
           }
         case .printable(let character) where searching:
           query.append(character)
