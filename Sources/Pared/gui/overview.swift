@@ -3,6 +3,7 @@ import SwiftUI
 struct OverviewPane: View {
   @Bindable var store: GUIStore
   @State private var showsDownloads = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var preparingDownload: String? {
     guard store.loaded, store.policyExists, let name = store.downloadPreparation,
@@ -51,7 +52,9 @@ struct OverviewPane: View {
       }
       .onChange(of: preparingDownload) { _, name in
         if name != nil {
-          withAnimation { proxy.scrollTo("download-setup", anchor: .top) }
+          withAnimation(reduceMotion ? nil : .default) {
+            proxy.scrollTo("download-setup", anchor: .top)
+          }
         }
       }
     }
@@ -79,6 +82,13 @@ struct OverviewPane: View {
             .padding(.horizontal, 16)
           }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityLabel("Feature choices")
+        .accessibilityValue(
+          FeatureState.allCases.map { state in
+            "\(store.features.count { store.draft.state($0.id) == state }) \(state.title.lowercased())"
+          }.joined(separator: ", "))
         Text(
           store.policyExists
             ? "Saved choices and installed controls are separate. Check Setup after making changes."
@@ -144,12 +154,14 @@ struct OverviewPane: View {
   }
 
   private var unsavedChanges: some View {
-    HStack(spacing: 16) {
+    VStack(alignment: .leading, spacing: 12) {
       Label("\(store.changedNames.count) unsaved changes", systemImage: "pencil.circle")
-      Spacer()
-      Button("Review", action: store.showChanges)
-      Button("Discard", action: store.discardChanges).disabled(store.working)
-      Button("Save Changes", action: store.save).disabled(!store.canSave)
+      HStack {
+        Button("Review", action: store.showChanges)
+        Button("Discard", action: store.discardChanges).disabled(store.working)
+        Spacer()
+        Button("Save Changes", action: store.save).disabled(!store.canSave)
+      }
     }
     .font(.callout)
     .padding(14)
@@ -268,6 +280,21 @@ private struct OverviewActionRow<Actions: View>: View {
   @ViewBuilder var actions: () -> Actions
 
   var body: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(alignment: .top, spacing: 16) {
+        heading.frame(minWidth: 220)
+        Spacer(minLength: 12)
+        VStack(spacing: 10, content: actions).frame(width: 190)
+      }
+      VStack(alignment: .leading, spacing: 12) {
+        heading
+        VStack(spacing: 10, content: actions).frame(maxWidth: .infinity)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var heading: some View {
     HStack(alignment: .top, spacing: 16) {
       Image(systemName: symbol).font(.title2).foregroundStyle(.secondary)
         .frame(width: 28).accessibilityHidden(true)
@@ -276,10 +303,7 @@ private struct OverviewActionRow<Actions: View>: View {
         Text(description).font(.callout).foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
-      Spacer(minLength: 12)
-      VStack(spacing: 10, content: actions).frame(width: 190)
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -357,8 +381,7 @@ struct QuickActionReview: View {
 
   var body: some View {
     let copy = presentation
-    VStack(alignment: .leading, spacing: 20) {
-      PageHeading(title: copy.title, description: copy.description, symbol: "switch.2")
+    ReviewSheet(title: copy.title, description: copy.description, symbol: "switch.2") {
       Text(
         "Saving applies the local settings Pared supports. You’ll also need to install the updated profile in System Settings. Some features require device management to fully restrict them."
       )
@@ -371,15 +394,13 @@ struct QuickActionReview: View {
         )
         .font(.callout)
       }
-      HStack {
-        Button("Cancel") { store.quickActionReview = nil }
-          .keyboardShortcut(.cancelAction)
-        Spacer()
-        Button(copy.confirmTitle, action: store.confirmQuickAction)
-          .disabled(!store.canEditChoices)
-      }
+    } actions: {
+      Button("Cancel") { store.quickActionReview = nil }
+        .keyboardShortcut(.cancelAction)
+      Spacer()
+      Button(copy.confirmTitle, action: store.confirmQuickAction)
+        .disabled(!store.canEditChoices)
     }
-    .padding(28).frame(width: 510)
   }
 
   private var presentation: (title: String, description: String, confirmTitle: String) {

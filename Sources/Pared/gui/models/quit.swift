@@ -11,30 +11,27 @@ struct ModelQuitReview: View {
   let review: ModelQuitOffer
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      PageHeading(
-        title: "Close Model Users and Retry?",
-        description: "Removal needs attention. Review processes with selected model files open.",
-        symbol: "app")
+    ReviewSheet(
+      title: "Close Model Users and Retry?",
+      description: "Removal needs attention. Review processes with selected model files open.",
+      symbol: "app"
+    ) {
       if !review.holders.isEmpty {
-        ScrollView {
-          VStack(alignment: .leading, spacing: 12) {
-            ForEach(review.holders) { holder in
-              VStack(alignment: .leading, spacing: 4) {
-                Text("\(holder.name) (PID \(holder.pid))").font(.headline)
-                if let executable = holder.executable {
-                  Text(executable).font(.caption).textSelection(.enabled)
-                }
-                Text(holder.assetSets.map(store.modelTitle).joined(separator: ", "))
-                  .font(.caption).foregroundStyle(.secondary)
-                if !holder.canForceQuit {
-                  Text("Process identity unavailable; cannot force quit").font(.caption)
-                }
+        VStack(alignment: .leading, spacing: 12) {
+          ForEach(review.holders) { holder in
+            VStack(alignment: .leading, spacing: 4) {
+              Text("\(holder.name) (PID \(holder.pid))").font(.headline)
+              if let executable = holder.executable {
+                Text(executable).font(.caption).textSelection(.enabled)
+              }
+              Text(holder.assetSets.map(store.modelTitle).joined(separator: ", "))
+                .font(.caption).foregroundStyle(.secondary)
+              if !holder.canForceQuit {
+                Text("Process identity unavailable; cannot force quit").font(.caption)
               }
             }
           }
         }
-        .frame(maxHeight: 200)
       }
       if review.holders.isEmpty {
         Text(
@@ -49,22 +46,20 @@ struct ModelQuitReview: View {
       ).foregroundStyle(.secondary)
       Button("Inspect With Administrator Access", action: store.inspectModelHoldersAsAdministrator)
         .disabled(store.working)
-      HStack {
-        Button("Cancel") { store.modelQuitReview = nil }
-          .keyboardShortcut(.cancelAction)
-          .disabled(store.working)
-        Spacer()
-        Button("Quit Normally") { store.quitReviewedModelApps() }
-          .disabled(
-            store.working || !review.holders.contains(where: \.canQuit))
-        Button("Force Quit and Retry", role: .destructive) {
-          store.quitReviewedModelApps(force: true)
-        }
+    } actions: {
+      Button("Cancel") { store.modelQuitReview = nil }
+        .keyboardShortcut(.cancelAction)
+        .disabled(store.working)
+      Spacer()
+      Button("Quit Normally") { store.quitReviewedModelApps() }
         .disabled(
-          store.working || !review.holders.contains(where: \.canForceQuit))
+          store.working || !review.holders.contains(where: \.canQuit))
+      Button("Force Quit and Retry", role: .destructive) {
+        store.quitReviewedModelApps(force: true)
       }
+      .disabled(
+        store.working || !review.holders.contains(where: \.canForceQuit))
     }
-    .padding(28).frame(width: 510)
     .interactiveDismissDisabled(store.working)
   }
 }

@@ -80,6 +80,36 @@ struct ParedApp: App {
           .disabled(!store.canUseSavedPolicy)
         Button("Review Model Removal…", action: store.reviewCleanup)
           .disabled(!store.canUseSavedPolicy || store.cleanupTargets.isEmpty)
+        Divider()
+        Menu("Set Selected Feature") {
+          ForEach(FeatureState.allCases, id: \.self) { state in
+            Button(state.title) {
+              if let name = store.selectedFeature { store.setFeature(name, to: state) }
+            }
+          }
+        }
+        .disabled(
+          store.section != .features || store.selectedFeature == nil || !store.canEditChoices)
+        Menu("Set All Features") {
+          ForEach(FeatureState.allCases, id: \.self) { state in
+            Button(state.bulkActionTitle) { store.setAll(state) }
+          }
+        }
+        .disabled(!store.canEditChoices)
+        Button("Turn Off All…") { store.reviewQuickAction(.turnOffAll) }
+          .disabled(!store.canEditChoices)
+        Button("Turn Off & Review Removal…") { store.reviewQuickAction(.turnOffAndRemoveAll) }
+          .disabled(!store.canEditChoices)
+        Menu("Download Models") {
+          ForEach(store.downloadFeatures) { feature in
+            Button(feature.title) { store.download(feature.id) }
+              .disabled(!store.canUseSavedPolicy || store.policy.state(feature.id) != .enabled)
+          }
+        }
+      }
+      CommandGroup(after: .textEditing) {
+        Button("Find Features", action: store.findFeatures)
+          .keyboardShortcut("f")
       }
       CommandGroup(after: .sidebar) {
         ForEach(GUISection.allCases.enumerated(), id: \.element) { index, section in
@@ -170,8 +200,9 @@ struct ParedWindow: View {
         Divider()
         HStack(spacing: 10) {
           if store.working {
-            ProgressView().controlSize(.small)
+            ProgressView().controlSize(.small).accessibilityLabel(store.activity)
             Text(store.activity)
+              .accessibilityHidden(true)
           } else {
             Image(systemName: store.hasChanges ? "pencil.circle" : "doc")
               .accessibilityHidden(true)
@@ -212,8 +243,8 @@ struct ParedWindow: View {
               .disabled(store.working)
           }
         }
-        if store.section != .updates && (store.section != .overview || store.hasChanges) {
-          ToolbarItem {
+        if store.hasChanges || (!store.policyExists && store.section != .updates) {
+          ToolbarItem(placement: .primaryAction) {
             Button(store.policyExists ? "Save Changes" : "Save Choices", action: store.save)
               .buttonStyle(.borderedProminent)
               .disabled(!store.canSave)
@@ -222,7 +253,7 @@ struct ParedWindow: View {
         }
       }
     }
-    .frame(minWidth: 880, minHeight: 580)
+    .frame(minWidth: 720, minHeight: 540)
     .onChange(of: store.working) { _, _ in updates.resumeIfReady() }
     .onChange(of: store.hasChanges) { _, _ in updates.resumeIfReady() }
     .alert(item: $store.issue) { issue in
@@ -238,6 +269,32 @@ struct ParedWindow: View {
     .sheet(item: $store.quickActionReview) { action in
       QuickActionReview(store: store, action: action)
     }
+  }
+}
+
+struct ReviewSheet<Content: View, Actions: View>: View {
+  let title: String
+  let description: String
+  let symbol: String
+  @ViewBuilder var content: () -> Content
+  @ViewBuilder var actions: () -> Actions
+
+  var body: some View {
+    VStack(spacing: 0) {
+      PageHeading(title: title, description: description, symbol: symbol)
+        .padding(24)
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16, content: content)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 24).padding(.bottom, 24)
+      }
+      .defaultScrollAnchor(.top)
+      .frame(maxHeight: 300)
+      Divider()
+      HStack(spacing: 10, content: actions)
+        .padding(20)
+    }
+    .frame(width: 540)
   }
 }
 
@@ -262,6 +319,7 @@ struct InlineMessage: View {
     .padding(14)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.quaternary.opacity(0.5))
+    .accessibilityElement(children: .combine)
   }
 }
 

@@ -67,31 +67,36 @@ struct ModelsPane: View {
             }
             .font(.caption).foregroundStyle(.secondary)
           }
-          Table(modelRows, selection: $store.selectedModel, sortOrder: $sortOrder) {
-            TableColumn("Model", value: \.title) { row in
-              Text(row.title).help(row.title)
+          GeometryReader { geometry in
+            ScrollView(.horizontal) {
+              Table(modelRows, selection: $store.selectedModel, sortOrder: $sortOrder) {
+                TableColumn("Model", value: \.title) { row in
+                  Text(row.title).help(row.title)
+                }
+                .width(min: 120, ideal: 180, max: 260)
+                TableColumn("Snapshot", value: \.snapshot) { row in
+                  Text(row.snapshot).help(row.snapshot)
+                }
+                .width(min: 150, ideal: 200, max: 280)
+                TableColumn(
+                  "Reported Size", value: \.self,
+                  comparator: KeyPathComparator(\ModelRow.reportedBytes)
+                ) { row in
+                  Text(row.reportedSize ?? "—")
+                    .monospacedDigit()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityLabel(row.reportedSize ?? "Not available")
+                }
+                .width(min: 90, ideal: 110, max: 170)
+                TableColumn("Removal", value: \.policy)
+                  .width(min: 75, ideal: 90, max: 150)
+              }
+              .tableStyle(.inset(alternatesRowBackgrounds: true))
+              .frame(width: max(480, geometry.size.width), height: 210)
+              .accessibilityLabel("Model snapshots")
             }
-            .width(min: 120, ideal: 180, max: 260)
-            TableColumn("Snapshot", value: \.snapshot) { row in
-              Text(row.snapshot).help(row.snapshot)
-            }
-            .width(min: 150, ideal: 200, max: 280)
-            TableColumn(
-              "Reported Size", value: \.self,
-              comparator: KeyPathComparator(\ModelRow.reportedBytes)
-            ) { row in
-              Text(row.reportedSize ?? "—")
-                .monospacedDigit()
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .accessibilityLabel(row.reportedSize ?? "Not available")
-            }
-            .width(min: 90, ideal: 110, max: 170)
-            TableColumn("Removal", value: \.policy)
-              .width(min: 75, ideal: 90, max: 150)
           }
-          .tableStyle(.inset(alternatesRowBackgrounds: true))
-          .frame(height: 210)
-          .accessibilityLabel("Model snapshots")
+          .frame(height: 228)
           if let asset = store.selectedModel,
             modelRows.contains(where: { $0.id == asset })
           {
@@ -241,59 +246,51 @@ struct CleanupReview: View {
   let review: ModelCleanupOffer
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      PageHeading(
-        title: review.targets.isEmpty ? "No Supported Models to Remove" : "Remove These Models?",
-        description: "Your saved choices turn off every feature Pared knows uses these models.",
-        symbol: "internaldrive")
-      ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-          VStack(alignment: .leading, spacing: 10) {
-            ForEach(review.targets, id: \.self) { asset in
-              Label(store.modelTitle(asset), systemImage: "cube")
-            }
-          }
-          .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-          .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-          if !review.plan.skipped.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-              Text("Skipped — model mapping unavailable").font(.headline)
-              ForEach(review.plan.skipped, id: \.name) { asset in
-                VStack(alignment: .leading, spacing: 4) {
-                  Label(store.modelTitle(asset.name), systemImage: "exclamationmark.triangle")
-                  Text(asset.reason).font(.caption).foregroundStyle(.secondary)
-                }
-              }
-              Text("These sets will be kept. Removal applies only to the supported sets above.")
-                .font(.callout).foregroundStyle(.secondary)
-            }
-          }
-          Text(
-            "Pared asks macOS to remove these model files. You’ll need to download them again to use these features later. macOS may keep files that are still in use."
-          )
-          .foregroundStyle(.secondary)
-          Text("Canceling removal keeps your saved feature choices.")
-            .font(.caption).foregroundStyle(.secondary)
-          if store.profileStatus?.installed != true || store.profileNeedsReplacement {
-            Label(
-              "Install the updated profile to help prevent these models from downloading again.",
-              systemImage: "doc.badge.gearshape"
-            )
-            .font(.callout).foregroundStyle(.secondary)
-          }
+    ReviewSheet(
+      title: review.targets.isEmpty ? "No Supported Models to Remove" : "Remove These Models?",
+      description: "Your saved choices turn off every feature Pared knows uses these models.",
+      symbol: "internaldrive"
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        ForEach(review.targets, id: \.self) { asset in
+          Label(store.modelTitle(asset), systemImage: "cube")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .frame(maxHeight: 450)
-      HStack {
-        Button("Cancel") { store.cleanupReview = nil }
-          .keyboardShortcut(.cancelAction)
-        Spacer()
-        Button("Remove Models", role: .destructive, action: store.removeReviewedModels)
-          .disabled(!store.canUseSavedPolicy || review.targets.isEmpty)
+      .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+      .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+      if !review.plan.skipped.isEmpty {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Skipped — model mapping unavailable").font(.headline)
+          ForEach(review.plan.skipped, id: \.name) { asset in
+            VStack(alignment: .leading, spacing: 4) {
+              Label(store.modelTitle(asset.name), systemImage: "exclamationmark.triangle")
+              Text(asset.reason).font(.caption).foregroundStyle(.secondary)
+            }
+          }
+          Text("These sets will be kept. Removal applies only to the supported sets above.")
+            .font(.callout).foregroundStyle(.secondary)
+        }
       }
+      Text(
+        "Pared asks macOS to remove these model files. You’ll need to download them again to use these features later. macOS may keep files that are still in use."
+      )
+      .foregroundStyle(.secondary)
+      Text("Canceling removal keeps your saved feature choices.")
+        .font(.caption).foregroundStyle(.secondary)
+      if store.profileStatus?.installed != true || store.profileNeedsReplacement {
+        Label(
+          "Install the updated profile to help prevent these models from downloading again.",
+          systemImage: "doc.badge.gearshape"
+        )
+        .font(.callout).foregroundStyle(.secondary)
+      }
+    } actions: {
+      Button("Cancel") { store.cleanupReview = nil }
+        .keyboardShortcut(.cancelAction)
+      Spacer()
+      Button("Remove Models", role: .destructive, action: store.removeReviewedModels)
+        .disabled(!store.canUseSavedPolicy || review.targets.isEmpty)
     }
-    .padding(28).frame(width: 510)
-    .interactiveDismissDisabled(store.busy)
+    .interactiveDismissDisabled(store.working)
   }
 }

@@ -2,101 +2,172 @@ import SwiftUI
 
 struct FeaturesPane: View {
   @Bindable var store: GUIStore
+  @FocusState private var searchFocused: Bool
+  @State private var searchPresented = false
+  @State private var showsCompactDetail = false
 
   private var filtered: [FeaturePresentation] {
     store.filteredFeatures
   }
 
   var body: some View {
-    HSplitView {
-      VStack(spacing: 0) {
-        HStack {
-          Picker("Show", selection: $store.featureFilter) {
-            ForEach(GUIFeatureFilter.allCases) { filter in
-              Text(filter.title).tag(filter)
-            }
+    GeometryReader { geometry in
+      Group {
+        if geometry.size.width >= 660 {
+          HSplitView {
+            featureList().frame(minWidth: 270, idealWidth: 300, maxWidth: 380)
+            featureDetail.frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
           }
-          .pickerStyle(.menu).labelsHidden()
-          .accessibilityLabel("Filter features")
-          Spacer()
-          Text(String(filtered.count)).font(.caption).foregroundStyle(.secondary)
-            .accessibilityLabel("\(filtered.count) features shown")
+        } else if showsCompactDetail, store.selectedFeature != nil {
+          VStack(spacing: 0) {
+            HStack {
+              Button("Features", systemImage: "chevron.left") { showsCompactDetail = false }
+                .help("Back to the feature list")
+              Spacer()
+            }
+            .padding(12)
+            Divider()
+            featureDetail
+          }
+        } else {
+          featureList(compact: true)
         }
-        .padding(12)
-        Divider()
-        List(selection: $store.selectedFeature) {
-          let groups = Dictionary(grouping: filtered, by: \.group)
-          ForEach(FeatureGroup.allCases, id: \.self) { group in
-            if let members = groups[group] {
-              Section(group.rawValue) {
-                ForEach(members) { feature in
-                  HStack(spacing: 10) {
-                    Image(systemName: feature.symbol).frame(width: 20).foregroundStyle(.secondary)
-                      .accessibilityHidden(true)
-                    Text(feature.title).lineLimit(2).help(feature.title)
-                    Spacer(minLength: 4)
-                    Text(store.draft.state(feature.id).title)
-                      .font(.caption).foregroundStyle(.secondary)
-                      .padding(.horizontal, 7).padding(.vertical, 3)
-                      .background(.quaternary, in: Capsule())
-                      .fixedSize()
-                    if store.draft.state(feature.id) != store.policy.state(feature.id) {
-                      Image(systemName: "pencil").font(.caption)
-                        .accessibilityLabel("Unsaved change")
+      }
+      .onChange(of: geometry.size.width >= 660) { wasWide, isWide in
+        if wasWide && !isWide { showsCompactDetail = store.selectedFeature != nil }
+      }
+    }
+    .searchable(text: $store.search, isPresented: $searchPresented, prompt: "Search features")
+    .searchFocused($searchFocused)
+    .searchPresentationToolbarBehavior(.avoidHidingContent)
+    .onChange(of: store.searchRequested) { _, requested in
+      if requested { focusSearch() }
+    }
+    .onChange(of: store.search) { _, _ in showsCompactDetail = false }
+    .onChange(of: store.featureFilter) { _, _ in showsCompactDetail = false }
+    .onChange(of: filtered.map(\.id)) { store.selectVisibleFeature() }
+    .onAppear {
+      store.selectVisibleFeature()
+      if store.searchRequested { focusSearch() }
+    }
+  }
+
+  private func focusSearch() {
+    showsCompactDetail = false
+    searchPresented = true
+    searchFocused = true
+    store.searchRequested = false
+  }
+
+  @ViewBuilder
+  private var featureDetail: some View {
+    if let name = store.selectedFeature, let feature = store.catalog?.features[name] {
+      FeatureDetail(store: store, name: name, feature: feature)
+    } else {
+      ContentUnavailableView("Select a Feature", systemImage: "switch.2")
+    }
+  }
+
+  private func featureList(compact: Bool = false) -> some View {
+    VStack(spacing: 0) {
+      HStack {
+        Picker("Show", selection: $store.featureFilter) {
+          ForEach(GUIFeatureFilter.allCases) { filter in
+            Text(filter.title).tag(filter)
+          }
+        }
+        .pickerStyle(.menu).labelsHidden()
+        .accessibilityLabel("Filter features")
+        Spacer()
+        Text(String(filtered.count)).font(.caption).foregroundStyle(.secondary)
+          .accessibilityLabel("\(filtered.count) features shown")
+      }
+      .padding(12)
+      Divider()
+      List(
+        selection: Binding(
+          get: { compact && !showsCompactDetail ? nil : store.selectedFeature },
+          set: {
+            store.selectedFeature = $0
+            showsCompactDetail = $0 != nil
+          }
+        )
+      ) {
+        let groups = Dictionary(grouping: filtered, by: \.group)
+        ForEach(FeatureGroup.allCases, id: \.self) { group in
+          if let members = groups[group] {
+            Section(group.rawValue) {
+              ForEach(members) { feature in
+                HStack(spacing: 10) {
+                  Image(systemName: feature.symbol).frame(width: 20).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                  Text(feature.title).lineLimit(2).help(feature.title)
+                  Spacer(minLength: 4)
+                  Text(store.draft.state(feature.id).title)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(.quaternary, in: Capsule())
+                    .fixedSize()
+                  if store.draft.state(feature.id) != store.policy.state(feature.id) {
+                    Image(systemName: "pencil").font(.caption)
+                      .accessibilityLabel("Unsaved change")
+                  }
+                }
+                .padding(.vertical, 4)
+                .tag(feature.id)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(feature.title)
+                .accessibilityValue(
+                  store.draft.state(feature.id).title
+                    + (store.draft.state(feature.id) != store.policy.state(feature.id)
+                      ? ", unsaved change" : "")
+                )
+                .contextMenu {
+                  ForEach(FeatureState.allCases, id: \.self) { state in
+                    Button(state.title, systemImage: state.symbol) {
+                      store.setFeature(feature.id, to: state)
                     }
                   }
-                  .padding(.vertical, 4)
-                  .tag(feature.id)
+                  .disabled(!store.canEditChoices)
                 }
               }
             }
           }
         }
-        .overlay {
-          if filtered.isEmpty {
-            ContentUnavailableView {
-              Label(
-                store.featureFilter == .changes && store.search.isEmpty
-                  ? "No Unsaved Changes" : "No Matching Features",
-                systemImage: store.featureFilter == .changes
-                  ? "checkmark.circle" : "magnifyingglass")
-            } description: {
-              Text("Change the filter or search to see more features.")
-            } actions: {
-              Button("Show All Features") {
-                store.search = ""
-                store.featureFilter = .all
-              }
+      }
+      .accessibilityLabel("Features")
+      .overlay {
+        if filtered.isEmpty {
+          ContentUnavailableView {
+            Label(
+              store.featureFilter == .changes && store.search.isEmpty
+                ? "No Unsaved Changes" : "No Matching Features",
+              systemImage: store.featureFilter == .changes
+                ? "checkmark.circle" : "magnifyingglass")
+          } description: {
+            Text("Change the filter or search to see more features.")
+          } actions: {
+            Button("Show All Features") {
+              store.search = ""
+              store.featureFilter = .all
             }
           }
         }
-        Divider()
-        HStack {
-          Menu("Set All Features") {
-            ForEach(FeatureState.allCases, id: \.self) { state in
-              Button(state.bulkActionTitle) { store.setAll(state) }
-            }
+      }
+      Divider()
+      HStack {
+        Menu("Set All Features") {
+          ForEach(FeatureState.allCases, id: \.self) { state in
+            Button(state.bulkActionTitle) { store.setAll(state) }
           }
-          .disabled(!store.canEditChoices)
-          Spacer()
-          Button("Discard Changes", action: store.discardChanges)
-            .disabled(store.working || !store.hasChanges)
         }
-        .padding(12)
+        .disabled(!store.canEditChoices)
+        Spacer()
+        Button("Discard Changes", action: store.discardChanges)
+          .disabled(store.working || !store.hasChanges)
       }
-      .frame(minWidth: 270, idealWidth: 300, maxWidth: 380)
-
-      if let name = store.selectedFeature, let feature = store.catalog?.features[name] {
-        FeatureDetail(store: store, name: name, feature: feature)
-          .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        ContentUnavailableView("Select a Feature", systemImage: "switch.2")
-          .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
-      }
+      .padding(12)
     }
-    .searchable(text: $store.search, prompt: "Search features")
-    .onChange(of: filtered.map(\.id)) { store.selectVisibleFeature() }
-    .onAppear { store.selectVisibleFeature() }
   }
 }
 
@@ -124,7 +195,7 @@ private struct FeatureDetail: View {
               "Feature state",
               selection: Binding(
                 get: { store.draft.state(name) },
-                set: { store.draft.features[name] = $0 }
+                set: { store.setFeature(name, to: $0) }
               )
             ) {
               ForEach(FeatureState.allCases, id: \.self) { state in

@@ -17,6 +17,7 @@ final class GUIStore {
   var selectedFeature: String? = "writingTools"
   var selectedModel: String? = "com.apple.modelcatalog"
   var search = ""
+  var searchRequested = false
   var featureFilter: GUIFeatureFilter = .all
   var policyURL = Policy.defaultURL
   private(set) var policy = Policy()
@@ -152,6 +153,16 @@ final class GUIStore {
     search = ""
     featureFilter = .changes
     selectVisibleFeature()
+  }
+
+  func findFeatures() {
+    section = .features
+    searchRequested = true
+  }
+
+  func setFeature(_ name: String, to state: FeatureState) {
+    guard canEditChoices, catalog?.features[name] != nil else { return }
+    draft.features[name] = state
   }
 
   func dismissNotice() {
@@ -291,8 +302,9 @@ final class GUIStore {
           try result.requireSuccess()
         }
         profileNeedsReplacement = true
-        notice = "Your choices have been saved."
-        noticeDestination = .overview
+        notice =
+          "Choices saved. Install the updated profile in System Settings to apply its controls."
+        noticeDestination = .profile
         lastDiagnostics = diagnostics.joined(separator: "\n\n")
         await reload(replaceDraft: true)
         saved = loaded && !hasChanges
