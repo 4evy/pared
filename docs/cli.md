@@ -116,6 +116,28 @@ pared models cleanup
 Only groups whose known features are all disabled are removed. Shared models
 stay if any feature in Pared’s catalog is enabled or unmanaged.
 
+To check Apple's current model mappings without removing anything:
+
+```sh
+pared models cleanup --review
+```
+
+The JSON report lists supported sets in `targets` and unavailable mappings in
+`skipped`, with a reason for each skipped set. `--dry-run` only lists sets
+eligible under your policy; it does not check their mappings. Choose either
+`--review` or `--dry-run`.
+
+To remove a reviewed subset, pass each set from `targets` with `--asset-set`:
+
+```sh
+pared models cleanup --asset-set com.apple.modelcatalog
+```
+
+Repeat `--asset-set` for more sets. Each must be unique and still eligible under
+your policy; Pared rechecks mappings before removal. The app and wizard show
+supported and skipped sets in their removal review and keep skipped sets.
+Unselected sets are kept.
+
 Cleanup exits 1 if selected model folders remain. If macOS accepts removal but
 Pared cannot inspect the folders, it exits 3: removal is unverified. Pared warns
 before requesting removal if folder inspection is already unavailable. A folder
@@ -144,8 +166,9 @@ an empty type directory, or a type directory containing only an empty
 for unfamiliar or unreadable layouts. For nonempty protected storage, Pared
 asks Apple's subscription daemon for asset paths, then checks each candidate
 with filesystem metadata. It accepts the known `purpose_auto` layout only when
-the asset directories and observed XML catalog account for every entry, with
-unchanged directory identity, entry counts, and modification/change times.
+the asset directories and observed XML catalog or its `.purged` copy account
+for every entry, with unchanged directory identity, entry counts, and
+modification/change times.
 Missing candidates, extra entries, and symbolic links leave inventory unknown.
 `models status` includes `directoryEntries` when this broker listing succeeds.
 When inventory proves there are no payloads, status skips the atomic-instance

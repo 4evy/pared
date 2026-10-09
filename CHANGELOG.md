@@ -2,11 +2,15 @@
 
 ## Unreleased
 
+## 2.2.0 — 2026-10-09
+
 ### Added
 
 - App menus for changing selected or all feature choices, reviewing bulk
   actions, and requesting mapped model downloads, plus Command-F to focus
   feature search
+- `pared models cleanup --review` for supported and skipped model sets as JSON,
+  and repeatable `--asset-set` selection for removing reviewed eligible sets
 
 ### Changed
 
@@ -21,6 +25,8 @@
 - Model inventory uses typed diagnostic records and published catalog metadata,
   preserving the distinction between JSON booleans and numbers when matching
   assets
+- The app and wizard review supported model sets for removal and explain which
+  sets are skipped because their model mappings cannot be verified
 
 ### Fixed
 
@@ -38,6 +44,8 @@
   validate Apple's DER signature format, envelope encoding, and audience
 - Model-holder inspection validates private process layouts and checks the
   returned executable path length and terminator before decoding it
+- Empty-folder verification rechecks directory identity and metadata, and
+  protected inventory recognizes purged XML catalogs when accounting for entries
 
 ## 2.1.0 — 2026-10-08
 
