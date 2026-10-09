@@ -60,11 +60,13 @@ final class ModelBrokerInventory {
     // The catalog name follows the type directory, but its existence and file
     // kind must be observed rather than assumed from Apple's usual layout
     let catalog = directory.lastPathComponent + ".xml"
-    metadata = stat()
-    if lstat(purpose.appendingPathComponent(catalog).path, &metadata) == 0,
-      metadata.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG)
-    {
-      names.insert(catalog)
+    for name in [catalog, catalog + ".purged"] {
+      metadata = stat()
+      if lstat(purpose.appendingPathComponent(name).path, &metadata) == 0,
+        metadata.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG)
+      {
+        names.insert(name)
+      }
     }
     guard names.count == Int(before.count),
       ModelDirectoryObservation(purpose.path) == before,

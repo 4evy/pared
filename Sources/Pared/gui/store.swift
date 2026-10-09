@@ -409,13 +409,13 @@ final class GUIStore {
     ) { [self] in
       try verifyPolicyUnchanged()
       let result = try await runner.run(
-        .cleanup, policyURL: policyURL, dryRun: true)
+        .cleanup, policyURL: policyURL, cleanupReview: true)
       try result.requireSuccess()
-      let targets = try result.decode([String].self)
-      guard targets == cleanupTargets else {
+      let plan = try result.decode(ModelCleanupPlan.self)
+      guard (plan.targets + plan.skipped.map(\.name)).sorted() == cleanupTargets.sorted() else {
         throw CLIError("The removal preview changed. Refresh and review it again.")
       }
-      cleanupReview = ModelCleanupOffer(targets: targets)
+      cleanupReview = ModelCleanupOffer(plan: plan)
     }
   }
 
@@ -424,7 +424,7 @@ final class GUIStore {
       return
     }
     cleanupReview = nil
-    guard reviewed == cleanupTargets else {
+    guard Set(reviewed).isSubset(of: Set(cleanupTargets)) else {
       issue = GUIIssue(
         title: "Removal preview changed", message: "Review the model selection again.")
       return
@@ -550,11 +550,11 @@ final class GUIStore {
       if force && remaining.isEmpty {
         try verifyPolicyUnchanged()
         let targets = review.assets.map(\.name).sorted()
-        guard targets == cleanupTargets.sorted() else {
+        guard Set(targets).isSubset(of: Set(cleanupTargets)) else {
           throw CLIError("The eligible models changed. Review removal again.")
         }
         let result = try await runner.cleanup(
-          reviewedTargets: cleanupTargets, policy: policy, policyURL: policyURL)
+          reviewedTargets: targets, policy: policy, policyURL: policyURL)
         lastDiagnostics += "\n" + result.diagnostics
         if result.terminationStatus == .exited(ExitStatus.verificationUnavailable.rawValue) {
           issue = GUIIssue(

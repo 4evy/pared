@@ -38,6 +38,9 @@ actor GUICommandRunner {
     guard current == policy else {
       throw CLIError("The policy changed. Refresh and review model removal again.")
     }
+    guard !reviewedTargets.isEmpty else {
+      throw CLIError("No model sets were reviewed; no request sent")
+    }
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("pared-review-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(
@@ -46,18 +49,14 @@ actor GUICommandRunner {
     defer { try? FileManager.default.removeItem(at: directory) }
     let snapshotURL = directory.appendingPathComponent("policy.json")
     try jsonData(policy).write(to: snapshotURL, options: .atomic)
-    // Use the reviewed snapshot for both commands so a concurrent CLI edit
-    // cannot broaden the selection between preview and removal
-    let preview = try await run(.cleanup, policyURL: snapshotURL, dryRun: true)
-    try preview.requireSuccess()
-    guard try preview.decode([String].self) == reviewedTargets else {
-      throw CLIError("The removal preview changed. Review the model selection again.")
-    }
-    return try await run(.cleanup, policyURL: snapshotURL)
+    // The CLI validates the explicit selection against this reviewed snapshot
+    // A concurrent policy edit cannot broaden removal to other eligible sets
+    return try await run(.cleanup, policyURL: snapshotURL, reviewedAssetSets: reviewedTargets)
   }
 
   func run(
-    _ command: Command, names: [String] = [], policyURL: URL?, dryRun: Bool = false
+    _ command: Command, names: [String] = [], policyURL: URL?, dryRun: Bool = false,
+    cleanupReview: Bool = false, reviewedAssetSets: [String] = []
   ) async throws -> GUICommandResult {
     // The CLI requires an existing file for --policy. The implicit default
     // path also supports creating the first policy when saving feature choices
@@ -73,6 +72,8 @@ actor GUICommandRunner {
       .path(.init(executable.path)),
       arguments: Arguments(
         command.arguments + names + (dryRun ? ["--dry-run"] : [])
+          + (cleanupReview ? ["--review"] : [])
+          + reviewedAssetSets.flatMap { ["--asset-set", $0] }
           + (explicitPolicy.map { ["--policy", $0.path] } ?? [])),
       output: .data(limit: .max), error: .string(limit: .max))
     if case .signaled(let signal) = result.terminationStatus {

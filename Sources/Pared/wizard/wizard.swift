@@ -504,10 +504,24 @@ private struct Wizard {
   private func cleanup() async throws -> (status: ExitStatus, requested: Bool) {
     try requireSavedPolicy()
     let policy = try policy()
-    let targets = policy.cleanupTargets(catalog)
-    guard !targets.isEmpty else {
+    let eligible = policy.cleanupTargets(catalog)
+    guard !eligible.isEmpty else {
       ui.info("No model sets are eligible for cleanup; no requests were sent")
       return (.success, false)
+    }
+    let plan = try ModelCleanupPlan.prepare(eligible, catalog: catalog)
+    let targets = plan.targets
+    if !plan.skipped.isEmpty {
+      panel(
+        "\(.accent("Models skipped"))",
+        lines: plan.skipped.map {
+          TerminalText(
+            stringLiteral: "• \(catalog.modelTitle($0.name, wizard: true)): \($0.reason)")
+        } + ["These sets will be kept; their model mappings could not be verified."])
+    }
+    guard !targets.isEmpty else {
+      ui.warning("No supported model sets are eligible for cleanup; no requests were sent")
+      return (.unavailable, false)
     }
     panel(
       "\(.primary("Models eligible for removal"))",

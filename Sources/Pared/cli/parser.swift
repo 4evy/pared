@@ -50,6 +50,7 @@ private protocol PolicyCommand: ParsableCommand {
   var options: PolicyOptions { get }
   var features: [String] { get }
   var dryRun: Bool { get }
+  func execute() throws -> ExitStatus
 }
 
 extension PolicyCommand {
@@ -62,9 +63,13 @@ extension PolicyCommand {
   var features: [String] { [] }
   var dryRun: Bool { false }
 
-  mutating func run() throws {
-    let status = try executeCommand(
+  func execute() throws -> ExitStatus {
+    try executeCommand(
       Self.operation, names: features, policyURL: options.url, dryRun: dryRun)
+  }
+
+  mutating func run() throws {
+    let status = try execute()
     if status != .success { throw ExitCode(status.rawValue) }
   }
 }
@@ -289,6 +294,24 @@ private struct ModelsCleanupCommand: PolicyCommand {
   @Argument(help: "Feature names or 'all'; omit to consider every feature", completion: .features)
   var features: [String] = []
   @Flag(help: "Print eligible model sets without removing them") var dryRun = false
+  @Flag(help: "Review matching and skipped model sets as JSON without removing them")
+  var review = false
+  @Option(
+    name: .customLong("asset-set"),
+    help: "Remove a reviewed eligible asset set; repeat for each set")
+  var assetSets: [String] = []
+
+  mutating func validate() throws {
+    guard !(review && dryRun) else {
+      throw ValidationError("Choose --review or --dry-run")
+    }
+  }
+
+  func execute() throws -> ExitStatus {
+    try executeCommand(
+      .cleanup, names: features, policyURL: options.url, dryRun: dryRun,
+      cleanupReview: review, reviewedAssetSets: assetSets.isEmpty ? nil : assetSets)
+  }
 }
 
 private struct ModelsCheckCommand: PolicyCommand {

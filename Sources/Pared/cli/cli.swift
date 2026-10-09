@@ -8,7 +8,8 @@ struct FeatureStatus: Codable {
 }
 
 func executeCommand(
-  _ command: Command, names requestedNames: [String], policyURL: URL?, dryRun: Bool
+  _ command: Command, names requestedNames: [String], policyURL: URL?, dryRun: Bool,
+  cleanupReview: Bool = false, reviewedAssetSets: [String]? = nil
 ) throws -> ExitStatus {
   let catalog = try Catalog.load()
   let url = policyURL ?? Policy.defaultURL
@@ -61,7 +62,23 @@ func executeCommand(
       ? .failure : .success
   case .cleanup:
     let requested = Set(catalog.assetSets(for: selected))
-    let targets = policy.cleanupTargets(catalog).filter { requested.contains($0) }
+    var targets = policy.cleanupTargets(catalog).filter { requested.contains($0) }
+    if let reviewedAssetSets {
+      let selection = Set(reviewedAssetSets)
+      guard !selection.isEmpty,
+        selection.count == reviewedAssetSets.count,
+        selection.isSubset(of: Set(targets))
+      else {
+        throw CLIError(
+          "Every selected asset set must be unique and eligible under the policy; no request sent")
+      }
+      targets = reviewedAssetSets.sorted()
+    }
+    if cleanupReview {
+      FileHandle.standardOutput.write(
+        try jsonData(ModelCleanupPlan.prepare(targets, catalog: catalog)))
+      return .success
+    }
     if dryRun {
       FileHandle.standardOutput.write(try jsonData(targets))
       return .success

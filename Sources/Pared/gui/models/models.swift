@@ -232,7 +232,8 @@ private struct ModelSnapshotDetail: View {
 
 struct ModelCleanupOffer: Identifiable {
   let id = UUID()
-  let targets: [String]
+  let plan: ModelCleanupPlan
+  var targets: [String] { plan.targets }
 }
 
 struct CleanupReview: View {
@@ -242,35 +243,54 @@ struct CleanupReview: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       PageHeading(
-        title: "Remove These Models?",
+        title: review.targets.isEmpty ? "No Supported Models to Remove" : "Remove These Models?",
         description: "Your saved choices turn off every feature Pared knows uses these models.",
         symbol: "internaldrive")
-      VStack(alignment: .leading, spacing: 10) {
-        ForEach(review.targets, id: \.self) { asset in
-          Label(store.modelTitle(asset), systemImage: "cube")
+      ScrollView {
+        VStack(alignment: .leading, spacing: 20) {
+          VStack(alignment: .leading, spacing: 10) {
+            ForEach(review.targets, id: \.self) { asset in
+              Label(store.modelTitle(asset), systemImage: "cube")
+            }
+          }
+          .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+          .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+          if !review.plan.skipped.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("Skipped — model mapping unavailable").font(.headline)
+              ForEach(review.plan.skipped, id: \.name) { asset in
+                VStack(alignment: .leading, spacing: 4) {
+                  Label(store.modelTitle(asset.name), systemImage: "exclamationmark.triangle")
+                  Text(asset.reason).font(.caption).foregroundStyle(.secondary)
+                }
+              }
+              Text("These sets will be kept. Removal applies only to the supported sets above.")
+                .font(.callout).foregroundStyle(.secondary)
+            }
+          }
+          Text(
+            "Pared asks macOS to remove these model files. You’ll need to download them again to use these features later. macOS may keep files that are still in use."
+          )
+          .foregroundStyle(.secondary)
+          Text("Canceling removal keeps your saved feature choices.")
+            .font(.caption).foregroundStyle(.secondary)
+          if store.profileStatus?.installed != true || store.profileNeedsReplacement {
+            Label(
+              "Install the updated profile to help prevent these models from downloading again.",
+              systemImage: "doc.badge.gearshape"
+            )
+            .font(.callout).foregroundStyle(.secondary)
+          }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-      .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-      Text(
-        "Pared asks macOS to remove these model files. You’ll need to download them again to use these features later. macOS may keep files that are still in use."
-      )
-      .foregroundStyle(.secondary)
-      Text("Canceling removal keeps your saved feature choices.")
-        .font(.caption).foregroundStyle(.secondary)
-      if store.profileStatus?.installed != true || store.profileNeedsReplacement {
-        Label(
-          "Install the updated profile to help prevent these models from downloading again.",
-          systemImage: "doc.badge.gearshape"
-        )
-        .font(.callout).foregroundStyle(.secondary)
-      }
+      .frame(maxHeight: 450)
       HStack {
         Button("Cancel") { store.cleanupReview = nil }
           .keyboardShortcut(.cancelAction)
         Spacer()
         Button("Remove Models", role: .destructive, action: store.removeReviewedModels)
-          .disabled(!store.canUseSavedPolicy)
+          .disabled(!store.canUseSavedPolicy || review.targets.isEmpty)
       }
     }
     .padding(28).frame(width: 510)
