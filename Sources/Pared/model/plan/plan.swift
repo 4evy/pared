@@ -1,3 +1,4 @@
+import AssetBridge
 import Foundation
 
 struct ModelCleanupPlan: Codable {
@@ -11,7 +12,7 @@ struct ModelCleanupPlan: Codable {
 
   // Review mappings without cancelling subscriptions or requesting removal
   static func prepare(_ targets: [String], catalog: Catalog) throws -> Self {
-    guard targets.isEmpty || dlopen(UnifiedAssets.framework, RTLD_NOW) != nil else {
+    guard targets.isEmpty || paredAssetRuntimeIsAvailable() else {
       throw CLIError("Cannot load UnifiedAssetFramework; no request sent")
     }
     var supported: [String] = []

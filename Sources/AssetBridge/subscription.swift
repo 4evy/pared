@@ -16,10 +16,10 @@ private func validatedNativeSubscription(
     bridgeMethodMatches(
       class_getInstanceMethod(type, NSSelectorFromString("initWithName:assetSets:usageAliases:")),
       NSSelectorFromString("initWithName:assetSets:usageAliases:"),
-      contract("ParedSubscriptionAPI"), true),
-    hasMethod(type, "supportsSecureCoding", "NSSecureCoding"),
-    bridgeInstancesHaveDeclaredMethods(type, contract("NSCoding")),
-    scalarBool(type, "supportsSecureCoding")
+      contract(.subscription), true),
+    hasMethod(type, "supportsSecureCoding", .secureCoding),
+    bridgeInstancesHaveDeclaredMethods(type, contract(.coding)),
+    scalarBool(type, .supportsSecureCoding) == true
   else {
     bridgeSetError(
       error, "Required subscription initializer or secure coding interface is unavailable")
@@ -27,22 +27,22 @@ private func validatedNativeSubscription(
   }
   guard let native = initializeSubscription(type, name, sets, aliases),
     let object = native as? NSObject, object.isKind(of: type),
-    hasMethod(native, "isValid:error:", "ParedSubscriptionAPI")
+    hasMethod(native, "isValid:error:", .subscription)
   else {
     bridgeSetError(error, "Required subscription validation interface is unavailable")
     return nil
   }
-  guard hasMethods(native, "ParedSubscriptionValuesAPI") else {
+  guard hasMethods(native, .subscriptionValues) else {
     bridgeSetError(error, "Required subscription value interface is unavailable")
     return nil
   }
   // Check what will be serialized: a compatible ABI does not prove values match
-  guard let storedName = objectValue(native, "name") as? NSString,
+  guard let storedName = objectValue(native, .name) as? NSString,
     storedName.isEqual(to: name as String),
-    let storedSets = objectValue(native, "assetSets") as? NSDictionary, storedSets.isEqual(sets),
-    let storedAliases = objectValue(native, "usageAliases") as? NSDictionary,
+    let storedSets = objectValue(native, .assetSets) as? NSDictionary, storedSets.isEqual(sets),
+    let storedAliases = objectValue(native, .usageAliases) as? NSDictionary,
     storedAliases.isEqual(aliases),
-    objectValue(native, "expiration") == nil
+    objectValue(native, .expiration) == nil
   else {
     bridgeSetError(error, "Apple returned unsupported subscription values")
     return nil

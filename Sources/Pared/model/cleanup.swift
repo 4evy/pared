@@ -10,7 +10,7 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     report("No asset sets selected; no request sent")
     return .success
   }
-  guard dlopen(UnifiedAssets.framework, RTLD_NOW) != nil else {
+  guard paredAssetRuntimeIsAvailable() else {
     report("Cannot load UnifiedAssetFramework")
     return .unavailable
   }
@@ -169,34 +169,26 @@ func verifyModelRemoval(
 }
 
 func modelOperation(
-  _ operation: ModelOperation, completion handler: @escaping (NSError?, Reply<ExitStatus>) -> Void
+  _ operation: ModelOperation,
+  completion handler: @escaping @Sendable (NSError?, Reply<ExitStatus>) -> Void
 ) -> ExitStatus {
   // Apple's interface supplies the oneway method signature and allowed object
   // classes; a plain Swift protocol produces an incompatible XPC message
   // Asset removal runs in the daemon; calling UAFAutoAssetManager's removal
   // helpers directly as a non-root process can return nil without removing
+  let reply = Reply<ExitStatus>()
   guard
-    let interface = UnifiedAssets.serviceInterface
+    let service = ParedOperationService(errorHandler: { error in
+      reply.finish(
+        .outcomeUnknown, message: "XPC transport error; request outcome may be unknown: \(error)")
+    })
   else {
     report("Required private XPC interface is unavailable")
     return .unavailable
   }
-  let connection = NSXPCConnection(machServiceName: UnifiedAssets.service, options: [])
-  connection.remoteObjectInterface = interface
-  connection.resume()
-  defer { connection.invalidate() }
-  let reply = Reply<ExitStatus>()
-  guard
-    let proxy = connection.remoteObjectProxyWithErrorHandler({ error in
-      reply.finish(
-        .outcomeUnknown, message: "XPC transport error; request outcome may be unknown: \(error)")
-    }) as? NSObject
-  else {
-    report("Cannot create subscription service proxy")
-    return .unavailable
-  }
+  defer { service.invalidate() }
   do {
-    try operation.send(to: proxy) { handler($0 as NSError?, reply) }
+    try operation.send(to: service) { handler($0 as NSError?, reply) }
   } catch {
     report("Cannot send model request: \(error)")
     return .unavailable

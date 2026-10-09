@@ -5,25 +5,46 @@ import ObjectiveC
 typealias BridgeError = AutoreleasingUnsafeMutablePointer<NSError?>?
 typealias BridgeCompletion = @convention(block) (NSError?) -> Void
 
-func contract(_ name: String) -> Protocol {
+private let assetRuntimeAvailable =
+  dlopen(
+    "/System/Library/PrivateFrameworks/UnifiedAssetFramework.framework/UnifiedAssetFramework",
+    RTLD_NOW) != nil
+
+/// Loads the framework once and keeps its native classes available
+/// Individual bridge operations also validate their required signatures
+public func paredAssetRuntimeIsAvailable() -> Bool { assetRuntimeAvailable }
+
+func contract(_ name: BridgeContract) -> Protocol {
   bridgeContracts[name]!
+}
+
+// Diagnostic callers can name a contract, but dispatch uses the closed enum
+func contract(_ name: String) -> Protocol {
+  guard let declaration = BridgeContract(rawValue: name) else {
+    preconditionFailure("Unknown bridge contract")
+  }
+  return contract(declaration)
+}
+
+private func methodSignature(_ encoding: UnsafePointer<CChar>?) -> NSObject? {
+  guard let encoding, let type = NSClassFromString("NSMethodSignature") else {
+    return nil
+  }
+  let selector = NSSelectorFromString("signatureWithObjCTypes:")
+  guard let metaclass = object_getClass(type),
+    let factory = class_getInstanceMethod(metaclass, selector)
+  else { return nil }
+  typealias Signature =
+    @convention(c) (AnyObject, Selector, UnsafePointer<CChar>) -> Unmanaged<AnyObject>?
+  let call = unsafeBitCast(method_getImplementation(factory), to: Signature.self)
+  return call(type, selector, encoding)?.takeUnretainedValue() as? NSObject
 }
 
 @_cdecl("ParedSignatureMatches")
 public func bridgeSignatureMatches(
   _ actual: UnsafePointer<CChar>?, _ expected: UnsafePointer<CChar>?
 ) -> Bool {
-  guard let actual, let expected, let type = NSClassFromString("NSMethodSignature") else {
-    return false
-  }
-  let selector = NSSelectorFromString("signatureWithObjCTypes:")
-  typealias Signature =
-    @convention(c) (AnyObject, Selector, UnsafePointer<CChar>) -> Unmanaged<AnyObject>?
-  let call = unsafeBitCast(
-    class_getMethodImplementation(object_getClass(type), selector), to: Signature.self)
-  guard let lhs = call(type, selector, actual)?.takeUnretainedValue() as? NSObject,
-    let rhs = call(type, selector, expected)?.takeUnretainedValue()
-  else { return false }
+  guard let lhs = methodSignature(actual), let rhs = methodSignature(expected) else { return false }
   return lhs.isEqual(rhs)
 }
 
@@ -71,38 +92,57 @@ func bridgeInstancesHaveDeclaredMethods(_ type: AnyClass?, _ contract: Protocol)
   declaredMethodsMatch(type, contract, true)
 }
 
-func hasMethod(_ object: AnyObject?, _ selector: String, _ name: String) -> Bool {
+func hasMethod(_ object: AnyObject?, _ selector: String, _ name: BridgeContract) -> Bool {
   bridgeHasMethod(object, NSSelectorFromString(selector), contract(name))
 }
 
-func hasMethods(_ object: AnyObject?, _ name: String) -> Bool {
+func hasMethods(_ object: AnyObject?, _ name: BridgeContract) -> Bool {
   bridgeHasDeclaredMethods(object, contract(name))
 }
 
-// The caller checks each private method's encoding before reaching these calls
+// Resolve and validate the same Method whose IMP will be called
 // Unmanaged preserves Objective-C's +0 getter and +1 initializer conventions
-private func implementation(_ object: AnyObject, _ selector: Selector) -> IMP {
-  class_getMethodImplementation(object_getClass(object), selector)!
+private func implementation(
+  _ object: AnyObject, _ selector: Selector, _ contractName: BridgeContract
+) -> IMP? {
+  guard let receiver = object_getClass(object),
+    let method = class_getInstanceMethod(receiver, selector),
+    bridgeMethodMatches(method, selector, contract(contractName), !object_isClass(object))
+  else { return nil }
+  return method_getImplementation(method)
 }
 
-func objectValue(_ object: AnyObject, _ name: String) -> AnyObject? {
-  let selector = NSSelectorFromString(name)
+func objectValue(_ object: AnyObject, _ getter: BridgeObjectGetter) -> AnyObject? {
+  let selector = NSSelectorFromString(getter.rawValue)
+  guard let implementation = implementation(object, selector, getter.contractName) else {
+    return nil
+  }
   typealias Call = @convention(c) (AnyObject, Selector) -> Unmanaged<AnyObject>?
-  return unsafeBitCast(implementation(object, selector), to: Call.self)(object, selector)?
-    .takeUnretainedValue()
+  return unsafeBitCast(implementation, to: Call.self)(object, selector)?.takeUnretainedValue()
 }
 
-func objectValue(_ object: AnyObject, _ name: String, _ value: NSString) -> AnyObject? {
-  let selector = NSSelectorFromString(name)
+// Preserve diagnostic callers while refusing selectors outside the getter ABI
+func objectValue(_ object: AnyObject, _ name: String) -> AnyObject? {
+  guard let getter = BridgeObjectGetter(rawValue: name) else { return nil }
+  return objectValue(object, getter)
+}
+
+func objectValue(_ object: AnyObject, _ query: BridgeStringQuery, _ value: NSString) -> AnyObject? {
+  let selector = NSSelectorFromString(query.rawValue)
+  guard let implementation = implementation(object, selector, query.contractName) else {
+    return nil
+  }
   typealias Call = @convention(c) (AnyObject, Selector, NSString) -> Unmanaged<AnyObject>?
-  return unsafeBitCast(implementation(object, selector), to: Call.self)(object, selector, value)?
+  return unsafeBitCast(implementation, to: Call.self)(object, selector, value)?
     .takeUnretainedValue()
 }
 
 func aliasValue(_ manager: AnyObject, _ alias: NSString, _ value: NSString) -> AnyObject? {
   let selector = NSSelectorFromString("getAssetSetUsagesForUsageAlias:usageAliasValue:")
+  guard let implementation = implementation(manager, selector, .configurationManager)
+  else { return nil }
   typealias Call = @convention(c) (AnyObject, Selector, NSString, NSString) -> Unmanaged<AnyObject>?
-  return unsafeBitCast(implementation(manager, selector), to: Call.self)(
+  return unsafeBitCast(implementation, to: Call.self)(
     manager, selector, alias, value)?.takeUnretainedValue()
 }
 
@@ -110,23 +150,28 @@ func initializeSubscription(
   _ type: AnyClass, _ name: NSString, _ sets: NSDictionary, _ aliases: NSDictionary
 ) -> AnyObject? {
   let allocate = NSSelectorFromString("alloc")
+  guard let allocateImplementation = implementation(type, allocate, .allocation) else {
+    return nil
+  }
   typealias Allocate = @convention(c) (AnyObject, Selector) -> Unmanaged<AnyObject>?
   guard
-    let allocated = unsafeBitCast(implementation(type, allocate), to: Allocate.self)(type, allocate)
+    let allocated = unsafeBitCast(allocateImplementation, to: Allocate.self)(type, allocate)
   else { return nil }
   let selector = NSSelectorFromString("initWithName:assetSets:usageAliases:")
   typealias Initialize =
     @convention(c) (AnyObject, Selector, NSString, NSDictionary, NSDictionary) -> Unmanaged<
       AnyObject
     >?
-  // init consumes alloc's ownership, including nil and replacement-object returns
+  // init consumes alloc's ownership, including nil and replacement-object
+  // returns
   let object = allocated.takeUnretainedValue()
-  // alloc may return a different class; check the receiver before calling its IMP
-  guard hasMethod(object, "initWithName:assetSets:usageAliases:", "ParedSubscriptionAPI") else {
+  // alloc may return a different class; check the receiver before calling its
+  // IMP
+  guard let initialize = implementation(object, selector, .subscription) else {
     allocated.release()
     return nil
   }
-  return unsafeBitCast(implementation(object, selector), to: Initialize.self)(
+  return unsafeBitCast(initialize, to: Initialize.self)(
     object, selector, name, sets, aliases)?.takeRetainedValue()
 }
 
@@ -134,48 +179,112 @@ func validateSubscription(_ object: AnyObject, _ manager: AnyObject, _ error: in
   -> Bool
 {
   let selector = NSSelectorFromString("isValid:error:")
+  guard let implementation = implementation(object, selector, .subscription) else {
+    error = NSError(
+      domain: "org.pared", code: 69,
+      userInfo: [NSLocalizedDescriptionKey: "Subscription validation ABI changed"])
+    return false
+  }
   typealias Call =
     @convention(c) (AnyObject, Selector, AnyObject, AutoreleasingUnsafeMutablePointer<AnyObject?>)
-    -> Bool
-  return unsafeBitCast(implementation(object, selector), to: Call.self)(
-    object, selector, manager, &error)
+    -> ObjCBool
+  return unsafeBitCast(implementation, to: Call.self)(
+    object, selector, manager, &error
+  ).boolValue
 }
 
 func latestStatus(_ type: AnyClass, _ name: NSString, _ error: inout AnyObject?) -> AnyObject? {
   let selector = NSSelectorFromString("latestStatusForClients:error:")
+  guard let implementation = implementation(type, selector, .autoAssetManager) else {
+    error = NSError(
+      domain: "org.pared", code: 69,
+      userInfo: [NSLocalizedDescriptionKey: "Local status ABI changed"])
+    return nil
+  }
   typealias Call =
     @convention(c) (AnyObject, Selector, NSString, AutoreleasingUnsafeMutablePointer<AnyObject?>) ->
     Unmanaged<AnyObject>?
-  return unsafeBitCast(implementation(type, selector), to: Call.self)(type, selector, name, &error)?
+  return unsafeBitCast(implementation, to: Call.self)(type, selector, name, &error)?
     .takeUnretainedValue()
 }
 
-func scalarBool(_ object: AnyObject, _ name: String) -> Bool {
-  let selector = NSSelectorFromString(name)
-  typealias Call = @convention(c) (AnyObject, Selector) -> Bool
-  return unsafeBitCast(implementation(object, selector), to: Call.self)(object, selector)
+func scalarBool(_ object: AnyObject, _ getter: BridgeBoolGetter) -> Bool? {
+  let selector = NSSelectorFromString(getter.rawValue)
+  guard let implementation = implementation(object, selector, getter.contractName) else {
+    return nil
+  }
+  typealias Call = @convention(c) (AnyObject, Selector) -> ObjCBool
+  return unsafeBitCast(implementation, to: Call.self)(object, selector).boolValue
 }
 
-func scalarInt64(_ object: AnyObject, _ name: String) -> Int64 {
-  let selector = NSSelectorFromString(name)
+func scalarInt64(_ object: AnyObject, _ getter: BridgeInt64Getter) -> Int64? {
+  let selector = NSSelectorFromString(getter.rawValue)
+  guard let implementation = implementation(object, selector, .assetSetStatusScalars)
+  else {
+    return nil
+  }
   typealias Call = @convention(c) (AnyObject, Selector) -> Int64
-  return unsafeBitCast(implementation(object, selector), to: Call.self)(object, selector)
+  return unsafeBitCast(implementation, to: Call.self)(object, selector)
+}
+
+enum BridgeForwardedMethod {
+  case operation, diagnostic
+
+  var selector: Selector {
+    NSSelectorFromString(
+      self == .operation ? "operationWithConfig:completion:" : "diagnosticInformation:")
+  }
+
+  var serviceContract: BridgeContract {
+    self == .operation
+      ? .operationService : .diagnosticService
+  }
+
+  var receiverContract: BridgeContract {
+    self == .operation ? .operationReceiver : .diagnosticReceiver
+  }
+}
+
+// Foundation's generated XPC proxy methods erase block and oneway encodings
+// Validate the full forwarding signature used to construct the invocation
+func bridgeMessageDispatcher(_ object: NSObject, _ method: BridgeForwardedMethod)
+  -> UnsafeMutableRawPointer?
+{
+  let selector = method.selector
+  let query = NSSelectorFromString("methodSignatureForSelector:")
+  guard let implementation = implementation(object, query, .messageSignature),
+    let signatureClass = NSClassFromString("NSMethodSignature")
+  else { return nil }
+  typealias Signature = @convention(c) (AnyObject, Selector, Selector) -> Unmanaged<AnyObject>?
+  guard
+    let actual = unsafeBitCast(implementation, to: Signature.self)(object, query, selector)?
+      .takeUnretainedValue() as? NSObject,
+    actual.isKind(of: signatureClass),
+    [method.serviceContract, method.receiverContract].contains(where: {
+      let expected = protocol_getMethodDescription(contract($0), selector, true, true)
+      return methodSignature(expected.types).map { actual.isEqual($0) } == true
+    })
+  else { return nil }
+  return dlsym(UnsafeMutableRawPointer(bitPattern: -2), "objc_msgSend")
 }
 
 func sendConfiguration(
-  _ proxy: NSObject?, _ configuration: NSDictionary, _ completion: BridgeCompletion?,
+  _ proxy: NSObject?, _ configuration: BridgeConfiguration, _ completion: BridgeCompletion?,
   _ error: BridgeError
 ) -> Bool {
   guard let proxy, let completion else {
     bridgeSetError(error, "A request requires a proxy and completion; no request sent")
     return false
   }
-  // XPC forwards this selector, so use message dispatch rather than its IMP
-  // The interface is checked when opening the connection
+  guard let dispatcher = bridgeMessageDispatcher(proxy, .operation) else {
+    bridgeSetError(error, "The operation receiver ABI is unavailable; no request sent")
+    return false
+  }
   typealias Send = @convention(c) (AnyObject, Selector, NSDictionary, BridgeCompletion) -> Void
-  let send = unsafeBitCast(
-    dlsym(UnsafeMutableRawPointer(bitPattern: -2), "objc_msgSend")!, to: Send.self)
-  send(proxy, NSSelectorFromString("operationWithConfig:completion:"), configuration, completion)
+  let send = unsafeBitCast(dispatcher, to: Send.self)
+  send(
+    proxy, NSSelectorFromString("operationWithConfig:completion:"), configuration.dictionary,
+    completion)
   return true
 }
 
@@ -207,13 +316,8 @@ func bridgeHasNonemptyStrings(_ values: AnyObject?) -> Bool {
 }
 
 func bridgeCopyStringValues(_ values: AnyObject?) -> NSDictionary? {
-  guard let values = values as? NSDictionary else { return nil }
-  let result = NSMutableDictionary(capacity: values.count)
-  for (key, value) in values {
-    guard let key = key as? NSString, let value = value as? NSString else { return nil }
-    result[key.copy() as! NSString] = value.copy()
-  }
-  return result.copy() as? NSDictionary
+  guard let values = values as? [NSString: NSString] else { return nil }
+  return NSDictionary(dictionary: values, copyItems: true)
 }
 
 func bridgeCopyAssetSetUsages(_ sets: AnyObject?) -> NSDictionary? {

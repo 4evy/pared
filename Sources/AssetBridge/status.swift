@@ -1,20 +1,20 @@
 import Foundation
 
 private func downloadedAsset(_ entry: AnyObject, _ error: BridgeError) -> ParedDownloadedAsset? {
-  guard hasMethods(entry, "ParedDownloadedEntryAPI") else {
+  guard hasMethods(entry, .downloadedEntry) else {
     bridgeSetError(error, "Unknown downloaded asset entry interface")
     return nil
   }
-  guard let selector = objectValue(entry, "fullAssetSelector"),
-    hasMethods(selector, "ParedAutoAssetSelectorAPI")
+  guard let selector = objectValue(entry, .fullAssetSelector),
+    hasMethods(selector, .autoAssetSelector)
   else {
     bridgeSetError(error, "Unknown downloaded asset selector interface")
     return nil
   }
-  let id = objectValue(entry, "assetID")
-  let type = objectValue(selector, "assetType")
-  let specifier = objectValue(selector, "assetSpecifier")
-  let version = objectValue(selector, "assetVersion")
+  let id = objectValue(entry, .assetID)
+  let type = objectValue(selector, .assetType)
+  let specifier = objectValue(selector, .assetSpecifier)
+  let version = objectValue(selector, .assetVersion)
   guard [id, type, specifier, version].allSatisfy(bridgeNonemptyString) else {
     bridgeSetError(error, "Unknown downloaded asset value types")
     return nil
@@ -32,8 +32,8 @@ public func bridgeLocalStatus(
     bridgeSetError(error, "Local status requires a nonempty asset set name")
     return nil
   }
-  guard let type = NSClassFromString("UAFAutoAssetManager"),
-    hasMethod(type, "latestStatusForClients:error:", "ParedAutoAssetManagerAPI")
+  guard paredAssetRuntimeIsAvailable(), let type = NSClassFromString("UAFAutoAssetManager"),
+    hasMethod(type, "latestStatusForClients:error:", .autoAssetManager)
   else {
     bridgeSetError(error, "Local asset status interface is unavailable")
     return nil
@@ -48,17 +48,17 @@ public func bridgeLocalStatus(
     bridgeSetError(error, "Apple returned no local asset status")
     return nil
   }
-  guard hasMethods(status, "ParedAssetSetStatusObjectsAPI") else {
+  guard hasMethods(status, .assetSetStatusObjects) else {
     bridgeSetError(error, "Unknown asset status object interface")
     return nil
   }
-  guard hasMethods(status, "ParedAssetSetStatusScalarsAPI") else {
+  guard hasMethods(status, .assetSetStatusScalars) else {
     bridgeSetError(error, "Unknown asset status scalar interface")
     return nil
   }
-  let instance = objectValue(status, "latestDownloadedAtomicInstance")
-  let configured = objectValue(status, "configuredAssetEntries")
-  let downloaded = objectValue(status, "latestDowloadedAtomicInstanceEntries")
+  let instance = objectValue(status, .latestDownloadedAtomicInstance)
+  let configured = objectValue(status, .configuredAssetEntries)
+  let downloaded = objectValue(status, .latestDowloadedAtomicInstanceEntries)
   guard instance == nil || instance is NSString, let configured = configured as? NSArray,
     let downloaded = downloaded as? NSArray
   else {
@@ -78,12 +78,19 @@ public func bridgeLocalStatus(
     guard let asset = downloadedAsset(entry as AnyObject, error) else { return nil }
     assets.append(asset)
   }
+  guard let network = scalarInt64(status, .downloadedNetworkBytes),
+    let filesystem = scalarInt64(status, .downloadedFilesystemBytes),
+    let vending = scalarBool(status, .vendingAtomicInstanceForConfiguredEntries)
+  else {
+    bridgeSetError(error, "Asset status scalar ABI changed")
+    return nil
+  }
   // Read each private getter once; query/release errors reject even a status
   return ParedLocalDownloadStatus(
     instance: instance as? String, configured: configured.count, assets: assets,
-    network: scalarInt64(status, "downloadedNetworkBytes"),
-    filesystem: scalarInt64(status, "downloadedFilesystemBytes"),
-    vending: scalarBool(status, "vendingAtomicInstanceForConfiguredEntries"))
+    network: network,
+    filesystem: filesystem,
+    vending: vending)
 }
 
 /// Queries the latest downloaded instance and rejects query or lock-release

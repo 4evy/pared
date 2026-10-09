@@ -1,17 +1,14 @@
 import Foundation
 
 func bridgeConfigurationManager() -> AnyObject? {
-  guard let type = NSClassFromString("UAFConfigurationManager"),
-    hasMethod(type, "defaultManager", "ParedConfigurationManagerAPI")
+  guard paredAssetRuntimeIsAvailable(), let type = NSClassFromString("UAFConfigurationManager")
   else { return nil }
-  return objectValue(type, "defaultManager")
+  return objectValue(type, .defaultManager)
 }
 
 func bridgeAssetSetWithManager(_ manager: AnyObject?, _ name: NSString?) -> AnyObject? {
-  guard bridgeNonemptyString(name), let name, let manager,
-    hasMethod(manager, "getAssetSet:", "ParedConfigurationManagerAPI")
-  else { return nil }
-  return objectValue(manager, "getAssetSet:", name)
+  guard bridgeNonemptyString(name), let name, let manager else { return nil }
+  return objectValue(manager, .assetSet, name)
 }
 
 func bridgeEnabledUsagesMatchConfiguration(_ sets: NSDictionary, _ manager: AnyObject)
@@ -20,10 +17,10 @@ func bridgeEnabledUsagesMatchConfiguration(_ sets: NSDictionary, _ manager: AnyO
   for (name, usages) in sets {
     guard let name = name as? NSString,
       let usages = usages as? NSDictionary,
-      let set = bridgeAssetSetWithManager(manager, name), hasMethods(set, "ParedAssetSetUsageAPI")
+      let set = bridgeAssetSetWithManager(manager, name), hasMethods(set, .assetSetUsage)
     else { return false }
-    let names = objectValue(set, "usageTypes")
-    let restrictions = objectValue(set, "usageValues")
+    let names = objectValue(set, .usageTypes)
+    let restrictions = objectValue(set, .usageValues)
     guard bridgeHasNonemptyStrings(names), restrictions == nil || restrictions is NSDictionary
     else { return false }
     for usage in usages.allKeys {
@@ -41,28 +38,24 @@ func bridgeResolveAliasWithManager(
   _ manager: AnyObject?, _ alias: AnyObject?, _ value: AnyObject?
 ) -> NSDictionary? {
   guard bridgeNonemptyString(alias), let alias = alias as? NSString,
-    let value = value as? NSString, let manager,
-    hasMethod(
-      manager, "getAssetSetUsagesForUsageAlias:usageAliasValue:", "ParedConfigurationManagerAPI")
+    let value = value as? NSString, let manager
   else { return nil }
   return bridgeCopyAssetSetUsages(aliasValue(manager, alias, value))
 }
 
 @_cdecl("ParedAssetTypeForSet")
 public func bridgeAssetTypeForSet(_ name: NSString?) -> NSString? {
-  guard let set = bridgeAssetSetWithManager(bridgeConfigurationManager(), name),
-    hasMethod(set, "autoAssetType", "ParedAssetSetConfigurationAPI")
+  guard let set = bridgeAssetSetWithManager(bridgeConfigurationManager(), name)
   else { return nil }
-  let value = objectValue(set, "autoAssetType")
+  let value = objectValue(set, .autoAssetType)
   return bridgeNonemptyString(value) ? (value as! NSString).copy() as? NSString : nil
 }
 
 @_cdecl("ParedUsageTypesForSet")
 public func bridgeUsageTypesForSet(_ name: NSString?) -> NSArray? {
-  guard let set = bridgeAssetSetWithManager(bridgeConfigurationManager(), name),
-    hasMethod(set, "usageTypes", "ParedAssetSetUsageAPI")
+  guard let set = bridgeAssetSetWithManager(bridgeConfigurationManager(), name)
   else { return nil }
-  let values = objectValue(set, "usageTypes")
+  let values = objectValue(set, .usageTypes)
   guard bridgeHasNonemptyStrings(values) else { return nil }
   return NSArray(array: values as! [Any], copyItems: true)
 }

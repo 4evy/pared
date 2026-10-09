@@ -146,8 +146,8 @@ private func inspectAssetSets(_ types: [String: String]) -> [String: Any] {
     let usages = paredUsageTypesForSet(name)
     let manager = usages == nil ? nil : bridgeConfigurationManager()
     let configuration = bridgeAssetSetWithManager(manager, name as NSString)
-    let available = hasMethod(configuration, "usageValues", "ParedAssetSetUsageAPI")
-    let restrictions = available ? configuration.flatMap { objectValue($0, "usageValues") } : nil
+    let available = hasMethod(configuration, "usageValues", .assetSetUsage)
+    let restrictions = available ? configuration.flatMap { objectValue($0, .usageValues) } : nil
     result[name] = [
       "catalogType": type, "runtimeType": paredAssetTypeForSet(name) as Any? ?? NSNull(),
       "usageTypes": usages as Any? ?? NSNull(), "usageValuesAvailable": available,
@@ -183,26 +183,26 @@ private func inspectNativeSubscription(
   guard let native = initializeSubscription(type, name, usages, aliases) as? NSObject else {
     return
   }
-  let available = hasMethods(native, "ParedSubscriptionValuesAPI")
+  let available = hasMethods(native, .subscriptionValues)
   details["nativeInputOwnershipAvailable"] = available
   if available {
-    details["nativeRetainsName"] = objectValue(native, "name") === name
-    details["nativeRetainsAssetSets"] = objectValue(native, "assetSets") === usages
-    details["nativeRetainsUsageAliases"] = objectValue(native, "usageAliases") === aliases
-    details["nativeHasExpiration"] = objectValue(native, "expiration") != nil
+    details["nativeRetainsName"] = objectValue(native, .name) === name
+    details["nativeRetainsAssetSets"] = objectValue(native, .assetSets) === usages
+    details["nativeRetainsUsageAliases"] = objectValue(native, .usageAliases) === aliases
+    details["nativeHasExpiration"] = objectValue(native, .expiration) != nil
   }
   let bridgeNative = validated.native
-  let snapshotAvailable = hasMethods(bridgeNative, "ParedSubscriptionValuesAPI")
+  let snapshotAvailable = hasMethods(bridgeNative, .subscriptionValues)
   details["bridgeInputSnapshotAvailable"] = snapshotAvailable
   if snapshotAvailable {
-    let sets = objectValue(bridgeNative, "assetSets") as! NSDictionary
-    let snapshotAliases = objectValue(bridgeNative, "usageAliases") as! NSDictionary
+    let sets = objectValue(bridgeNative, .assetSets) as! NSDictionary
+    let snapshotAliases = objectValue(bridgeNative, .usageAliases) as! NSDictionary
     let nestedCopies = usages.allKeys.allSatisfy { key in
       (sets[key] as AnyObject?) !== (usages[key] as AnyObject?)
         && !(sets[key] is NSMutableDictionary)
     }
     details["bridgeInputSnapshot"] = [
-      "nameEqual": (objectValue(bridgeNative, "name") as? NSObject)?.isEqual(name) == true,
+      "nameEqual": (objectValue(bridgeNative, .name) as? NSObject)?.isEqual(name) == true,
       "assetSetsEqual": sets.isEqual(usages), "usageAliasesEqual": snapshotAliases.isEqual(aliases),
       "assetSetsCopied": sets !== usages, "usageAliasesCopied": snapshotAliases !== aliases,
       "nestedUsagesCopiedAndImmutable": nestedCopies,

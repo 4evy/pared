@@ -56,9 +56,10 @@ struct ModelSubscriptionBatch {
   }
 
   fileprivate func send(
-    to proxy: NSObject, completion: @escaping (Error?) -> Void, error: inout NSError?
+    to service: ParedOperationService, completion: @escaping @Sendable (Error?) -> Void,
+    error: inout NSError?
   ) -> Bool {
-    paredPerformSubscribe(proxy, subscriber, subscriptions.map(\.native), completion, &error)
+    paredPerformSubscribe(service, subscriber, subscriptions.map(\.native), completion, &error)
   }
 }
 
@@ -68,16 +69,18 @@ enum ModelOperation {
   case subscribe(ModelSubscriptionBatch)
   case unsubscribe(subscriber: String, names: [String])
 
-  func send(to proxy: NSObject, completion: @escaping (Error?) -> Void) throws {
+  func send(to service: ParedOperationService, completion: @escaping @Sendable (Error?) -> Void)
+    throws
+  {
     var error: NSError?
     let sent =
       switch self {
       case .reset(let assetSets):
-        paredPerformReset(proxy, assetSets, completion, &error)
+        paredPerformReset(service, assetSets, completion, &error)
       case .subscribe(let batch):
-        batch.send(to: proxy, completion: completion, error: &error)
+        batch.send(to: service, completion: completion, error: &error)
       case .unsubscribe(let subscriber, let names):
-        paredPerformUnsubscribe(proxy, subscriber, names, completion, &error)
+        paredPerformUnsubscribe(service, subscriber, names, completion, &error)
       }
     guard sent else {
       if let error { throw error }

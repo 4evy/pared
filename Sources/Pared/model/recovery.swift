@@ -26,9 +26,7 @@ func recoverModels(
   }
   try validateDownloadPreferences(policy: policy, catalog: catalog, names: names)
   guard
-    dlopen(
-      UnifiedAssets.framework,
-      RTLD_NOW) != nil
+    paredAssetRuntimeIsAvailable()
   else { throw CLIError("Cannot load UnifiedAssetFramework") }
   let targets = catalog.assetSets(for: names, at: \.downloadAssetSets)
   let assets = try catalog.modelAssets(targets, includingDownloadDependencies: true)

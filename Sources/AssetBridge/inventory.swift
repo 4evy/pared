@@ -1,24 +1,9 @@
 import Darwin
 import Foundation
-import ObjectiveC
 
 /// Preserves Apple's diagnostic interface and its oneway reply signature
 public func paredDiagnosticServiceInterface() -> NSXPCInterface? {
-  guard let type = NSClassFromString("UAFXPCProxyServiceInterface"),
-    hasMethod(type, "defaultInterface", "ParedServiceInterfaceAPI"),
-    let interface = objectValue(type, "defaultInterface") as? NSXPCInterface
-  else { return nil }
-  let selector = NSSelectorFromString("diagnosticInformation:")
-  let actual = protocol_getMethodDescription(interface.protocol, selector, true, true)
-  let expected = protocol_getMethodDescription(
-    contract("ParedDiagnosticServiceAPI"), selector, true, true)
-  guard bridgeSignatureMatches(actual.types, expected.types),
-    (interface.classes(for: selector, argumentIndex: 0, ofReply: true) as NSSet)
-      .contains(NSString.self),
-    (interface.classes(for: selector, argumentIndex: 1, ofReply: true) as NSSet)
-      .contains(NSError.self)
-  else { return nil }
-  return interface
+  bridgeServiceInterface(.diagnostic, replyClasses: [[NSString.self], [NSError.self]])
 }
 
 /// Returns asset records as JSON, discarding diagnostic preferences,

@@ -121,9 +121,7 @@ func modelPayloadDirectories(
 // UAF's convenience status method discards the underlying error
 func modelStatus(_ targets: [String], catalog: Catalog) throws -> [ModelStatus] {
   guard
-    dlopen(
-      UnifiedAssets.framework,
-      RTLD_NOW) != nil
+    paredAssetRuntimeIsAvailable()
   else { throw CLIError("Cannot load UnifiedAssetFramework") }
   let assets = try catalog.modelAssets(targets)
   for asset in assets { try asset.validateConfiguration() }

@@ -1,28 +1,73 @@
 import Foundation
 import ObjectiveC
 
+// Operation-specific payloads keep required fields together until serialization
+enum BridgeConfiguration {
+  case reset(names: NSArray)
+  case subscribe(subscriber: NSString, subscriptions: [ParedAssetSubscription])
+  case unsubscribe(subscriber: NSString, names: NSArray)
+
+  var dictionary: NSDictionary {
+    switch self {
+    case .reset(let names):
+      ["Operation": "ResetAssetSets", "AssetSets": names]
+    case .subscribe(let subscriber, let subscriptions):
+      [
+        "Operation": "Subscribe", "Subscriber": subscriber,
+        "Subscriptions": subscriptions.map(\.native), "UserInitiated": true,
+      ]
+    case .unsubscribe(let subscriber, let names):
+      [
+        "Operation": "Unsubscribe", "Subscriber": subscriber,
+        "Subscriptions": names, "UserInitiated": true,
+      ]
+    }
+  }
+}
+
+// Preserve Apple's interface, oneway signature, and allowed nested classes
+func bridgeServiceInterface(
+  _ method: BridgeForwardedMethod, requestClasses: [AnyClass] = [],
+  replyClasses: [[AnyClass]]
+) -> NSXPCInterface? {
+  guard paredAssetRuntimeIsAvailable(),
+    let type = NSClassFromString("UAFXPCProxyServiceInterface"),
+    let interface = objectValue(type, .defaultInterface) as? NSXPCInterface
+  else { return nil }
+  let selector = method.selector
+  let actual = protocol_getMethodDescription(
+    interface.protocol, selector, true, true)
+  let expected = protocol_getMethodDescription(
+    contract(method.serviceContract), selector, true, true)
+  guard bridgeSignatureMatches(actual.types, expected.types) else { return nil }
+  if !requestClasses.isEmpty {
+    let allowed =
+      interface.classes(for: selector, argumentIndex: 0, ofReply: false)
+      as NSSet
+    guard requestClasses.allSatisfy({ allowed.contains($0) }) else {
+      return nil
+    }
+  }
+  for (index, required) in replyClasses.enumerated() {
+    let allowed =
+      interface.classes(for: selector, argumentIndex: index, ofReply: true)
+      as NSSet
+    guard required.allSatisfy({ allowed.contains($0) }) else { return nil }
+  }
+  return interface
+}
+
 @_cdecl("ParedServiceInterface")
 public func paredServiceInterface() -> NSXPCInterface? {
-  guard let type = NSClassFromString("UAFXPCProxyServiceInterface"),
-    hasMethod(type, "defaultInterface", "ParedServiceInterfaceAPI"),
-    let interface = objectValue(type, "defaultInterface") as? NSXPCInterface
-  else { return nil }
-  let operation = NSSelectorFromString("operationWithConfig:completion:")
-  let actual = protocol_getMethodDescription(interface.protocol, operation, true, true)
-  let expected = protocol_getMethodDescription(contract("ParedServiceAPI"), operation, true, true)
-  guard bridgeSignatureMatches(actual.types, expected.types),
+  guard paredAssetRuntimeIsAvailable(),
     let subscription = NSClassFromString("UAFAssetSetSubscription")
   else { return nil }
-  // Preserve Apple's interface and allowed classes for nested native objects
-  let request = interface.classes(for: operation, argumentIndex: 0, ofReply: false) as NSSet
-  let required: [AnyClass] = [
-    subscription, NSString.self, NSDictionary.self, NSArray.self, NSNumber.self,
-  ]
-  guard required.allSatisfy({ request.contains($0) }),
-    (interface.classes(for: operation, argumentIndex: 0, ofReply: true) as NSSet).contains(
-      NSError.self)
-  else { return nil }
-  return interface
+  return bridgeServiceInterface(
+    .operation,
+    requestClasses: [
+      subscription, NSString.self, NSDictionary.self, NSArray.self, NSNumber.self,
+    ],
+    replyClasses: [[NSError.self]])
 }
 
 private func copiedNames(_ values: AnyObject?) -> NSArray? {
@@ -46,7 +91,7 @@ public func bridgePerformReset(
     return false
   }
   return sendConfiguration(
-    proxy, ["Operation": "ResetAssetSets", "AssetSets": names], completion, error)
+    proxy, .reset(names: names), completion, error)
 }
 
 @_cdecl("ParedPerformSubscribe")
@@ -73,11 +118,7 @@ public func bridgePerformSubscribe(
     return false
   }
   return sendConfiguration(
-    proxy,
-    [
-      "Operation": "Subscribe", "Subscriber": subscriber,
-      "Subscriptions": subscriptions.map(\.native), "UserInitiated": true,
-    ], completion, error)
+    proxy, .subscribe(subscriber: subscriber, subscriptions: subscriptions), completion, error)
 }
 
 @_cdecl("ParedPerformUnsubscribe")
@@ -95,39 +136,52 @@ public func bridgePerformUnsubscribe(
     return false
   }
   return sendConfiguration(
-    proxy,
-    [
-      "Operation": "Unsubscribe", "Subscriber": subscriber,
-      "Subscriptions": names, "UserInitiated": true,
-    ], completion, error)
+    proxy, .unsubscribe(subscriber: subscriber, names: names), completion, error)
 }
 
 /// Resets named sets for all users, leaving subscriptions intact
 /// A successful reply does not prove every payload was deleted; a timeout or
 /// transport error can follow daemon effects, so check before retrying
 public func paredPerformReset(
-  _ proxy: NSObject, _ sets: [String], _ completion: @escaping (Error?) -> Void,
+  _ service: ParedOperationService, _ sets: [String],
+  _ completion: @escaping @Sendable (Error?) -> Void,
   _ error: AutoreleasingUnsafeMutablePointer<NSError?>?
 ) -> Bool {
-  bridgePerformReset(proxy, sets as NSArray, { completion($0) }, error)
+  guard let proxy = service.proxy() else {
+    bridgeSetError(error, "Cannot create the operation service proxy; no request sent")
+    return false
+  }
+  return bridgePerformReset(proxy, sets as NSArray, { completion($0) }, error)
 }
 
-/// Subscribes validated requests; a successful reply does not promise a download
+/// Subscribes validated requests; a successful reply does not promise a
+/// download
 /// Configuration changes can survive a failed database write
 public func paredPerformSubscribe(
-  _ proxy: NSObject, _ subscriber: String, _ subscriptions: [ParedAssetSubscription],
-  _ completion: @escaping (Error?) -> Void, _ error: AutoreleasingUnsafeMutablePointer<NSError?>?
+  _ service: ParedOperationService, _ subscriber: String, _ subscriptions: [ParedAssetSubscription],
+  _ completion: @escaping @Sendable (Error?) -> Void,
+  _ error: AutoreleasingUnsafeMutablePointer<NSError?>?
 ) -> Bool {
-  bridgePerformSubscribe(
+  guard let proxy = service.proxy() else {
+    bridgeSetError(error, "Cannot create the operation service proxy; no request sent")
+    return false
+  }
+  return bridgePerformSubscribe(
     proxy, subscriber as NSString, subscriptions as NSArray, { completion($0) }, error)
 }
 
-/// Removes named requests; other subscribers can keep requesting the same assets
+/// Removes named requests; other subscribers can keep requesting the same
+/// assets
 /// Unreadable stored requests may be skipped as though absent
 public func paredPerformUnsubscribe(
-  _ proxy: NSObject, _ subscriber: String, _ names: [String],
-  _ completion: @escaping (Error?) -> Void, _ error: AutoreleasingUnsafeMutablePointer<NSError?>?
+  _ service: ParedOperationService, _ subscriber: String, _ names: [String],
+  _ completion: @escaping @Sendable (Error?) -> Void,
+  _ error: AutoreleasingUnsafeMutablePointer<NSError?>?
 ) -> Bool {
-  bridgePerformUnsubscribe(
+  guard let proxy = service.proxy() else {
+    bridgeSetError(error, "Cannot create the operation service proxy; no request sent")
+    return false
+  }
+  return bridgePerformUnsubscribe(
     proxy, subscriber as NSString, names as NSArray, { completion($0) }, error)
 }

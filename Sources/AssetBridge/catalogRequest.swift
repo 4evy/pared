@@ -9,13 +9,13 @@ public func paredCatalogRequestConfiguration(_ assetType: String) -> [String: St
       "/System/Library/PrivateFrameworks/MobileAssetDaemon.framework/MobileAssetDaemon", RTLD_NOW)
       != nil,
     let type = NSClassFromString("DownloadManager"),
-    hasMethod(type, "pallasConfigurationForAssetType:", "ParedCatalogConfigurationAPI"),
+    hasMethod(type, "pallasConfigurationForAssetType:", .catalogConfiguration),
     let configuration = objectValue(
-      type, "pallasConfigurationForAssetType:", assetType as NSString),
-    hasMethods(configuration, "ParedCatalogConfigurationValuesAPI"),
-    let audience = objectValue(configuration, "uuid") as? String,
+      type, .catalogConfiguration, assetType as NSString),
+    hasMethods(configuration, .catalogConfigurationValues),
+    let audience = objectValue(configuration, .uuid) as? String,
     UUID(uuidString: audience) != nil,
-    let endpointString = objectValue(configuration, "url") as? String,
+    let endpointString = objectValue(configuration, .url) as? String,
     let endpoint = URL(string: endpointString),
     endpoint.scheme == "https", endpoint.path == "/v2/assets",
     ["gdmf.apple.com", "gdmf-ados.apple.com"].contains(endpoint.host ?? ""),

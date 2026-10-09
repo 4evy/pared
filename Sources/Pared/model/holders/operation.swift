@@ -1,3 +1,4 @@
+import AssetBridge
 import Foundation
 import Subprocess
 
@@ -24,7 +25,7 @@ struct ModelHolderResponse: Codable, Sendable {
 }
 
 func runModelHolderRequest(_ request: ModelHolderRequest) async throws -> ModelHolderResponse {
-  guard dlopen(UnifiedAssets.framework, RTLD_NOW) != nil else {
+  guard paredAssetRuntimeIsAvailable() else {
     throw CLIError("Cannot load UnifiedAssetFramework for model-holder inspection")
   }
   let catalog = try Catalog.load()

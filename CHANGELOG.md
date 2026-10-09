@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- Private asset operations use checked service connections and validate native
+  method and XPC forwarding signatures before dispatch
+
+### Fixed
+
+- Private asset calls use Intel's native BOOL convention and report unsupported
+  status getter signatures instead of calling them unchecked
+
 ## 2.1.0 — 2026-10-08
 
 ### Added
