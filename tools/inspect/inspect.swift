@@ -1,6 +1,8 @@
 // Read configuration and status and check subscription serialization locally
-// No requests are sent to the daemon. Status reads briefly lock assets
+// No subscription or reset operations are sent. Status reads briefly lock
+// assets
 // Run tools/inspect/inspect.sh Sources/Pared/Resources/catalog.json
+// Add --published-catalog TYPE to decode published metadata without saving it
 // Exit 0 means collection succeeded; inspect per-set and archive errors
 import Darwin
 import Foundation
@@ -72,6 +74,8 @@ private func frameworkImages() -> [String: Any] {
     let path = String(cString: pathPointer)
     guard
       path.contains("/UnifiedAssetFramework.framework/") || path.contains("/MobileAsset.framework/")
+        || path.contains("/MobileAssetDaemon.framework/")
+        || path.hasSuffix("/libMobileGestalt.dylib")
     else { continue }
     var command = UnsafeRawPointer(header).advanced(by: MemoryLayout<mach_header_64>.size)
     for _ in 0..<header.pointee.ncmds {
@@ -127,6 +131,8 @@ private let inspectedClasses: [(String, Inspection)] = [
   ("UAFAutoAssetManager", [.methods, .implementations]), ("MAAutoAssetSet", .implementations),
   ("MAAutoAssetSetStatus", .all), ("MAAutoAssetSetAtomicEntry", .all),
   ("MAAutoAssetSetEntry", [.implementations, .properties]), ("MAAutoAssetSelector", .all),
+  ("DownloadManager", [.methods, .implementations]), ("MAPallasConfiguration", .all),
+  ("PallasResponseVerifier", .all),
 ]
 
 private func inspectClasses(_ observation: Inspection, _ inspect: (String) -> [String: Any])
@@ -153,6 +159,68 @@ private func inspectAssetSets(_ types: [String: String]) -> [String: Any] {
       "usageTypes": usages as Any? ?? NSNull(), "usageValuesAvailable": available,
       "usageValues": restrictions ?? NSNull(), "snapshot": status.map(snapshot) as Any? ?? NSNull(),
       "error": errorDetails(error),
+    ]
+  }
+  return result
+}
+
+private func inspectCatalogConfigurations(_ types: [String: String]) -> [String: Any] {
+  Dictionary(
+    uniqueKeysWithValues: Set(types.values).sorted().map { type in
+      guard let configuration = paredCatalogRequestConfiguration(type) else {
+        return (type, ["available": false] as [String: Any])
+      }
+      return (
+        type,
+        [
+          "available": true, "endpoint": configuration.endpoint.absoluteString,
+          "audience": configuration.audience, "productType": configuration.productType,
+          "hardwareModel": configuration.hardwareModel,
+          "productVersion": configuration.productVersion,
+          "buildVersion": configuration.buildVersion,
+        ] as [String: Any]
+      )
+    })
+}
+
+private func inspectPublishedCatalog(_ assetType: String) async throws -> [String: Any] {
+  guard let configuration = paredCatalogRequestConfiguration(assetType) else {
+    throw NSError(
+      domain: "inspect-uaf", code: 69,
+      userInfo: [NSLocalizedDescriptionKey: "Catalog configuration is unavailable"])
+  }
+  // Use the production HTTPS transport and decoder; retain summary counts only
+  let catalog = try await paredFetchPublishedCatalog(assetType, configuration: configuration)
+  return [
+    "assetType": assetType, "publishedAssetCount": catalog.assets.count,
+    "requestedTypeAssetCount": catalog.assets.filter { $0.identity.type == assetType }.count,
+    "distinctIdentityCount": Set(catalog.assets.map(\.identity)).count,
+    "decryptionKeysRemoved": catalog.assets.allSatisfy {
+      $0.metadata["ArchiveDecryptionKey"] == nil
+    },
+    "independentEnvelopeSignatureVerified": false,
+  ]
+}
+
+private func inspectForwardingReceivers() -> [String: Any] {
+  let operation = ParedOperationService(errorHandler: { _ in })
+  let diagnostic = ParedDiagnosticService(errorHandler: { _ in })
+  defer {
+    operation?.invalidate()
+    diagnostic?.invalidate()
+  }
+  var result: [String: Any] = [:]
+  for (name, method, receiver) in [
+    ("operation", BridgeForwardedMethod.operation, operation?.proxy()),
+    ("diagnostic", BridgeForwardedMethod.diagnostic, diagnostic?.proxy()),
+  ] {
+    guard let receiver else { continue }
+    let concrete = class_getInstanceMethod(object_getClass(receiver), method.selector)
+    result[name] = [
+      "forwardingSignatureMatches": bridgeMessageDispatcher(receiver, method) != nil,
+      "generatedMethodEncoding": concrete.flatMap(method_getTypeEncoding).map {
+        String(cString: $0)
+      } as Any? ?? NSNull(),
     ]
   }
   return result
@@ -248,17 +316,17 @@ private func inspectRecovery(_ recovery: NSDictionary) -> [String: Any] {
 
 @main
 private enum InspectUAF {
-  static func main() {
-    guard CommandLine.arguments.count == 2 else {
+  static func main() async {
+    let arguments = CommandLine.arguments
+    guard
+      arguments.count == 2
+        || (arguments.count == 4 && arguments[2] == "--published-catalog")
+    else {
       FileHandle.standardError.write(
-        Data("Usage: inspect-uaf Sources/Pared/Resources/catalog.json\n".utf8))
+        Data("Usage: inspect-uaf CATALOG.json [--published-catalog TYPE]\n".utf8))
       exit(64)
     }
-    guard
-      dlopen(
-        "/System/Library/PrivateFrameworks/UnifiedAssetFramework.framework/UnifiedAssetFramework",
-        RTLD_NOW) != nil
-    else {
+    guard paredAssetRuntimeIsAvailable() else {
       FileHandle.standardError.write(Data("Cannot load UnifiedAssetFramework\n".utf8))
       exit(69)
     }
@@ -277,12 +345,34 @@ private enum InspectUAF {
       #else
         let architecture = "other"
       #endif
+      types.merge(catalog["recoveryAssetTypes"] as? [String: String] ?? [:]) { _, new in new }
+      // Load catalog classes before collecting their encodings and image UUIDs
+      let configurations = inspectCatalogConfigurations(types)
+      let versions = paredProcessVersions()
+      var processError: NSError?
+      let parent = paredInspectProcess(getppid(), &processError)
       var report: [String: Any] = [
         "os": ProcessInfo.processInfo.operatingSystemVersionString, "architecture": architecture,
         "methods": inspectClasses(.methods, methods),
         "implementations": inspectClasses(.implementations, implementations),
         "properties": inspectClasses(.properties, properties), "frameworkImages": frameworkImages(),
+        "catalogConfigurations": configurations,
+        "forwardingReceivers": inspectForwardingReceivers(),
+        "bridgeDiagnosticInterfaceAvailable": paredDiagnosticServiceInterface() != nil,
+        "processAPI": [
+          "observedProcessCount": versions.count, "parentIdentityAvailable": parent != nil,
+          "parentVersionMatches": parent.map { versions[$0.pid] == $0.version } == true,
+          "error": errorDetails(processError),
+        ],
       ]
+      if arguments.count == 4 {
+        guard Set(types.values).contains(arguments[3]) else {
+          throw NSError(
+            domain: "inspect-uaf", code: 64,
+            userInfo: [NSLocalizedDescriptionKey: "Choose an asset type from the bundled catalog"])
+        }
+        report["publishedCatalog"] = try await inspectPublishedCatalog(arguments[3])
+      }
       let interface = paredServiceInterface()
       report["bridgeInterfaceAvailable"] = interface != nil
       if let interface {
@@ -297,7 +387,6 @@ private enum InspectUAF {
             interface.classes(for: operation, argumentIndex: 0, ofReply: true)),
         ]
       }
-      types.merge(catalog["recoveryAssetTypes"] as? [String: String] ?? [:]) { _, new in new }
       report["assetSets"] = inspectAssetSets(types)
       var recoveries: [String: Any] = [:]
       for (name, feature) in features {
