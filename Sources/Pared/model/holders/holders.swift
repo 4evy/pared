@@ -89,7 +89,7 @@ func modelHolders(_ assets: [ModelAssetSet]) async throws -> [ModelHolder] {
       // process identity rather than a guessed parent application
       let identity = paredInspectProcess(pid, nil)
       let stable =
-        identity.map { versionsBeforeInspection[NSNumber(value: pid)]?.uint32Value == $0.version }
+        identity.map { versionsBeforeInspection[pid] == $0.version }
         == true
       let canQuit =
         stable && processUsers[pid] == getuid()

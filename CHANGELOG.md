@@ -18,6 +18,8 @@
   assets and includes diagnostic errors and completeness in its JSON report
 - Published catalog queries omit the hardcoded certificate issuance date and
   validate Apple's DER signature format, envelope encoding, and audience
+- Model-holder inspection validates private process layouts and checks the
+  returned executable path length and terminator before decoding it
 
 ## 2.1.0 — 2026-10-08
 

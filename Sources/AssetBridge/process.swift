@@ -2,6 +2,12 @@ import Darwin
 import Foundation
 
 // Darwin's private proc_pidinfo flavors 17 and 18 share these ABI layouts
+// Source: https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/proc_info_private.h
+private enum ProcessInfoFlavor: Int32 {
+  case uniqueIdentifier = 17
+  case bsdWithUniqueIdentifier = 18
+}
+
 private struct ParedUniqueProcessInfo {
   var uuid: uuid_t = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
   var uniqueID: UInt64 = 0
@@ -16,39 +22,54 @@ private struct ParedBSDUniqueProcessInfo {
   var unique = ParedUniqueProcessInfo()
 }
 
+private let processLayoutIsValid =
+  MemoryLayout<ParedUniqueProcessInfo>.size == 56
+  && MemoryLayout<ParedUniqueProcessInfo>.offset(of: \.version) == 32
+  && MemoryLayout<ParedUniqueProcessInfo>.offset(of: \.reserved) == 40
+  && MemoryLayout<ParedBSDUniqueProcessInfo>.offset(of: \.unique)
+    == MemoryLayout<proc_bsdinfo>.stride
+  && MemoryLayout<ParedBSDUniqueProcessInfo>.size
+    == MemoryLayout<proc_bsdinfo>.stride + 56
+
 private func processError(_ error: BridgeError, _ code: Int32) {
   error?.pointee = NSError(domain: NSPOSIXErrorDomain, code: Int(code))
 }
 
 @_cdecl("ParedProcessVersions")
 public func bridgeProcessVersions() -> NSDictionary {
-  precondition(MemoryLayout<ParedUniqueProcessInfo>.size == 56)
+  paredProcessVersions() as NSDictionary
+}
+
+/// Captures process versions before an open-file inspection
+/// Missing entries mean the process was not observable in this snapshot
+public func paredProcessVersions() -> [Int32: UInt32] {
+  guard processLayoutIsValid else { return [:] }
   let count = proc_listallpids(nil, 0)
   guard count > 0, count <= 100_000 else { return [:] }
   var pids = [pid_t](repeating: 0, count: Int(count) + 64)
   let found = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-  var versions: [NSNumber: NSNumber] = [:]
+  var versions: [Int32: UInt32] = [:]
   for pid in pids.prefix(max(0, min(Int(found), pids.count))) where pid > 1 && pid != getpid() {
     var info = ParedUniqueProcessInfo()
     let size = Int32(MemoryLayout.size(ofValue: info))
-    if proc_pidinfo(pid, 17, 0, &info, size) == size {
-      versions[NSNumber(value: pid)] = NSNumber(value: UInt32(bitPattern: info.version))
+    if proc_pidinfo(pid, ProcessInfoFlavor.uniqueIdentifier.rawValue, 0, &info, size) == size {
+      versions[pid] = UInt32(bitPattern: info.version)
     }
   }
-  return versions as NSDictionary
+  return versions
 }
 
 @_cdecl("ParedInspectProcess")
 public func paredInspectProcess(_ pid: Int32, _ error: AutoreleasingUnsafeMutablePointer<NSError?>?)
   -> ParedProcessIdentity?
 {
-  guard pid > 1, pid != getpid() else {
+  guard processLayoutIsValid, pid > 1, pid != getpid() else {
     processError(error, EINVAL)
     return nil
   }
   var info = ParedBSDUniqueProcessInfo()
   let size = Int32(MemoryLayout.size(ofValue: info))
-  let bytes = proc_pidinfo(pid, 18, 0, &info, size)
+  let bytes = proc_pidinfo(pid, ProcessInfoFlavor.bsdWithUniqueIdentifier.rawValue, 0, &info, size)
   guard bytes == size, info.bsd.pbi_pid == UInt32(pid) else {
     processError(error, bytes <= 0 ? errno : EINVAL)
     return nil
@@ -65,8 +86,11 @@ public func paredInspectProcess(_ pid: Int32, _ error: AutoreleasingUnsafeMutabl
     processError(error, errno)
     return nil
   }
-  guard
-    let executable = path.withUnsafeBufferPointer({ String(validatingCString: $0.baseAddress!) }),
+  // libproc returns strlen(buffer); decode only those bytes and check the NUL
+  guard Int(pathBytes) < path.count, path[Int(pathBytes)] == 0,
+    let executable = path.withUnsafeBytes({
+      String(validating: $0.prefix(Int(pathBytes)), as: UTF8.self)
+    }),
     !executable.isEmpty
   else {
     processError(error, EINVAL)
@@ -99,11 +123,6 @@ public func bridgeForceQuitProcess(
     return false
   }
   return true
-}
-
-/// Captures process versions before an open-file inspection
-public func paredProcessVersions() -> [NSNumber: NSNumber] {
-  bridgeProcessVersions() as! [NSNumber: NSNumber]
 }
 
 /// Rechecks identity, then sends SIGKILL with kernel PID-version validation
