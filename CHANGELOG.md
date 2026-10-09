@@ -2,8 +2,20 @@
 
 ## Unreleased
 
+### Added
+
+- App menus for changing selected or all feature choices, reviewing bulk
+  actions, and requesting mapped model downloads, plus Command-F to focus
+  feature search
+
 ### Changed
 
+- The app supports smaller windows with compact feature navigation, adaptive
+  action rows, and horizontal scrolling for model snapshot columns
+- GUI menus, toolbars, and panes share action definitions and presentation
+  components; model downloads share rows and reviews use one sheet route
+- Current settings use native labeled rows backed by typed preference values,
+  preserving inverted settings, profile enforcement hints, and raw details
 - Private asset operations use checked service connections and validate native
   method and XPC forwarding signatures before dispatch
 - Model inventory uses typed diagnostic records and published catalog metadata,
@@ -12,6 +24,12 @@
 
 ### Fixed
 
+- Disclosure headers expand from the whole row, and download buttons and
+  feature context menus use their full visible hit areas
+- Save remains available while choices are unsaved, including on the Updates
+  pane, and the save confirmation directs users to install the updated profile
+- VoiceOver reads feature choice summaries, notices, and the current operation;
+  download setup scrolling respects Reduce Motion
 - Private asset calls use Intel's native BOOL convention and report unsupported
   status getter signatures instead of calling them unchecked
 - Model inventory rejects malformed diagnostic records without silently dropping
