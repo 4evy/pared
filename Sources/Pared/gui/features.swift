@@ -235,54 +235,7 @@ private struct FeatureDetail: View {
         Text(note).font(.callout).foregroundStyle(.secondary)
       }
       if !feature.preferences.isEmpty {
-        SettingsGroup(title: "Current Settings") {
-          if let error = store.statusError {
-            Text(error).foregroundStyle(.secondary).textSelection(.enabled)
-          } else if let status {
-            ForEach(status.preferences) { preference in
-              VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
-                  let definition = feature.preferences.first {
-                    $0.id == preference.id
-                  }
-                  Text(definition?.title ?? preference.key).fontWeight(.medium)
-                  Spacer()
-                  let inverted =
-                    definition?.inverted ?? false
-                  Text(
-                    preference.value.map { $0 != inverted ? "Enabled" : "Disabled" }
-                      ?? "Not set")
-                }
-                if preference.forced {
-                  Label("Enforced by a management profile", systemImage: "lock")
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-              }
-              .textSelection(.enabled)
-            }
-            Text(
-              "These values reflect mapped preferences, not complete feature availability. Relaunch affected apps after saving."
-            )
-            .font(.caption).foregroundStyle(.secondary)
-            DisclosureGroup("Preference Details") {
-              ForEach(status.preferences) { preference in
-                VStack(alignment: .leading, spacing: 4) {
-                  Text("\(preference.domain) · \(preference.key)")
-                    .font(.caption.monospaced()).textSelection(.enabled)
-                  Text(
-                    "Raw value: "
-                      + (preference.value.map { $0 ? "true" : "false" } ?? "not set")
-                  )
-                  .font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(.top, 6)
-              }
-            }
-          } else {
-            Text("Preferences have not been checked yet.").foregroundStyle(.secondary)
-          }
-        }
-        .font(.callout)
+        FeaturePreferences(feature: feature, status: status, error: store.statusError)
       }
       if !feature.assetSets.isEmpty {
         SettingsGroup(title: "Models Used") {
