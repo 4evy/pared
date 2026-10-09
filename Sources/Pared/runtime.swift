@@ -1,4 +1,3 @@
-import AssetBridge
 import Foundation
 
 // Use the same exit codes for immediate failures and asynchronous XPC replies
@@ -18,9 +17,6 @@ enum Artifacts {
 }
 
 enum UnifiedAssets {
-  static let framework =
-    "/System/Library/PrivateFrameworks/UnifiedAssetFramework.framework/UnifiedAssetFramework"
-  static let service = "com.apple.siri.uaf.subscription.service"
   static let subscriber = "org.pared"
   static let checkTarget = "org.pared.nonexistent.readonly-validation"
   static let errorDomain = "com.apple.UnifiedAssetFramework"
@@ -29,5 +25,4 @@ enum UnifiedAssets {
   static let replyTimeout: TimeInterval = 45
   static let assetDirectory = URL(fileURLWithPath: "/System/Library/AssetsV2", isDirectory: true)
   static let assetExtension = "asset"
-  static var serviceInterface: NSXPCInterface? { paredServiceInterface() }
 }

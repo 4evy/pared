@@ -6,27 +6,32 @@ import Foundation
 // Daemon paths are candidates: only filesystem metadata establishes coverage
 final class ModelBrokerInventory {
   private(set) var listings: [String: [String]] = [:]
-  private lazy var assets: [[String: Any]]? = {
-    guard dlopen(UnifiedAssets.framework, RTLD_NOW) != nil,
-      let interface = paredDiagnosticServiceInterface()
-    else { return nil }
-    let connection = NSXPCConnection(machServiceName: UnifiedAssets.service, options: [])
-    connection.remoteObjectInterface = interface
-    connection.resume()
-    defer { connection.invalidate() }
-    let reply = Reply<Data?>()
+  private var diagnosticError: String?
+  private lazy var assets: [ParedDiagnosticAsset]? = {
+    let reply = Reply<Result<[ParedDiagnosticAsset], Error>>()
     guard
-      let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in
-        reply.finish(nil)
-      }) as? NSObject
-    else { return nil }
-    paredDiagnosticAssets(proxy) { data, _ in reply.finish(data) }
-    guard let data = reply.wait(timeout: 15) ?? nil else { return nil }
-    return try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+      let service = ParedDiagnosticService(errorHandler: { error in
+        reply.finish(.failure(error))
+      })
+    else {
+      diagnosticError = "Required private diagnostic interface is unavailable"
+      return nil
+    }
+    defer { service.invalidate() }
+    paredDiagnosticAssets(service) { reply.finish($0) }
+    guard let result = reply.wait(timeout: 15) else {
+      diagnosticError = "The asset diagnostic request timed out"
+      return nil
+    }
+    do { return try result.get() } catch {
+      diagnosticError = error.localizedDescription
+      return nil
+    }
   }()
 
   // List the known type/purpose layout only when every entry is accounted for
-  // A missing candidate, extra entry, symlink, or concurrent mutation rejects it
+  // A missing candidate, extra entry, symlink, or concurrent mutation rejects
+  // it
   func entries(in directory: URL) -> [String]? {
     var metadata = stat()
     if lstat(directory.path, &metadata) != 0, errno == ENOENT {
@@ -42,7 +47,7 @@ final class ModelBrokerInventory {
     guard let before = ModelDirectoryObservation(purpose.path) else { return nil }
     let prefix = purpose.path + "/"
     var names = Set<String>()
-    let locations = assets.compactMap { $0["location"] as? String }
+    let locations = assets.map(\.location)
     for path in locations where path.hasPrefix(prefix) {
       let suffix = String(path.dropFirst(prefix.count))
       let parts = suffix.split(separator: "/", omittingEmptySubsequences: false)
@@ -79,28 +84,24 @@ final class ModelBrokerInventory {
 
   // Metadata is Apple's parsed asset view, not bytes read from Info.plist or
   // the XML catalog; preserve that distinction in the exported report
-  func report(assetType: String) -> (object: [String: Any], complete: Bool) {
+  func report(assetType: String) -> ModelInventoryReport {
     let directory = UnifiedAssets.assetDirectory.appendingPathComponent(
       assetType.replacingOccurrences(of: ".", with: "_"), isDirectory: true)
     let entries = entries(in: directory)
     let complete = entries != nil || modelDirectoryIsProvablyEmpty(directory)
     let prefix = directory.path + "/purpose_auto/"
     let reported = (assets ?? []).filter {
-      ($0["location"] as? String)?.hasPrefix(prefix) == true
+      $0.location.hasPrefix(prefix)
     }
-    var object: [String: Any] = [
-      "assetType": assetType, "directory": directory.path,
-      "directoryListingComplete": complete,
-      "metadataFileContentsComplete": false,
-      "metadataSource": "Apple asset subscription daemon; not raw file contents",
-      "metadataRedactions": ["ArchiveDecryptionKey"],
-      "reportedAssets": reported,
-    ]
-    if let entries { object["directoryEntries"] = entries }
-    if !complete {
-      object["inventoryError"] =
-        "The daemon's reported paths do not account for every directory entry, or directory metadata is unavailable. Reported assets are a partial broker view."
-    }
-    return (object, complete)
+    return ModelInventoryReport(
+      broker: .init(
+        assetType: assetType, directory: directory.path, directoryListingComplete: complete,
+        reportedAssets: reported.map(ModelReportedAsset.init), directoryEntries: entries,
+        diagnosticError: diagnosticError,
+        inventoryError: complete
+          ? nil
+          : "The daemon's reported paths do not account for every directory entry, or directory metadata is unavailable. Reported assets are a partial broker view."
+      )
+    )
   }
 }

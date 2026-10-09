@@ -212,7 +212,7 @@ private struct ModelsStatusCommand: PolicyCommand {
   var features: [String] = []
 }
 
-private struct ModelsInventoryCommand: ParsableCommand {
+private struct ModelsInventoryCommand: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "inventory",
     abstract: "Ask Apple's daemon for asset paths and parsed metadata",
@@ -232,7 +232,7 @@ private struct ModelsInventoryCommand: ParsableCommand {
   @Option(help: "Inspect a specific UAF asset type instead of selecting features")
   var assetType: String?
 
-  mutating func run() throws {
+  mutating func run() async throws {
     let types: [String]
     if let assetType {
       guard features.isEmpty,
@@ -246,14 +246,11 @@ private struct ModelsInventoryCommand: ParsableCommand {
       types = try catalog.modelAssets(targets).map(\.assetType)
     }
     let broker = ModelBrokerInventory()
-    let reports = types.map { type in
-      let inventory = broker.report(assetType: type)
-      let supplemented = modelCatalogMetadata(inventory.object)
-      return (object: supplemented.object, complete: inventory.complete && supplemented.complete)
+    var reports: [ModelInventoryReport] = []
+    for type in types {
+      reports.append(await modelCatalogMetadata(broker.report(assetType: type)))
     }
-    let data = try JSONSerialization.data(
-      withJSONObject: reports.map(\.object), options: [.prettyPrinted, .sortedKeys])
-    FileHandle.standardOutput.write(data + Data([10]))
+    FileHandle.standardOutput.write(try jsonData(reports))
     if reports.contains(where: { !$0.complete }) { throw ExitCode(1) }
   }
 }

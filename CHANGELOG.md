@@ -6,11 +6,18 @@
 
 - Private asset operations use checked service connections and validate native
   method and XPC forwarding signatures before dispatch
+- Model inventory uses typed diagnostic records and published catalog metadata,
+  preserving the distinction between JSON booleans and numbers when matching
+  assets
 
 ### Fixed
 
 - Private asset calls use Intel's native BOOL convention and report unsupported
   status getter signatures instead of calling them unchecked
+- Model inventory rejects malformed diagnostic records without silently dropping
+  assets and includes diagnostic errors and completeness in its JSON report
+- Published catalog queries omit the hardcoded certificate issuance date and
+  validate Apple's DER signature format, envelope encoding, and audience
 
 ## 2.1.0 — 2026-10-08
 
