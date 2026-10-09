@@ -49,6 +49,16 @@ enum GUISection: String, CaseIterable, Identifiable {
 
   var id: Self { self }
 
+  var ordinal: Int { Self.allCases.firstIndex(of: self)! + 1 }
+
+  var sidebarGroup: GUISidebarGroup {
+    switch self {
+    case .features, .models, .profile: .customize
+    case .overview: .primary
+    case .updates: .application
+    }
+  }
+
   var symbol: String {
     switch self {
     case .overview: "house"
@@ -60,7 +70,17 @@ enum GUISection: String, CaseIterable, Identifiable {
   }
 }
 
-enum GUIQuickAction: Identifiable, Equatable {
+enum GUISidebarGroup: CaseIterable, Identifiable {
+  case primary
+  case customize
+  case application
+
+  var id: Self { self }
+  var title: String? { self == .customize ? "Customize" : nil }
+  var sections: [GUISection] { GUISection.allCases.filter { $0.sidebarGroup == self } }
+}
+
+enum GUIQuickAction: Identifiable, Hashable {
   case turnOffAll
   case turnOffAndRemoveAll
   case enableFeature(String)
@@ -72,6 +92,63 @@ enum GUIQuickAction: Identifiable, Equatable {
     case .enableFeature(let name): "enable-\(name)"
     }
   }
+
+  var featureName: String? {
+    if case .enableFeature(let name) = self { name } else { nil }
+  }
+
+  var title: String {
+    switch self {
+    case .turnOffAll: "Turn Off All…"
+    case .turnOffAndRemoveAll: "Turn Off & Review Removal…"
+    case .enableFeature: "Get Models…"
+    }
+  }
+
+  func review(featureTitle: String?) -> QuickActionPresentation {
+    switch self {
+    case .turnOffAll:
+      QuickActionPresentation(
+        title: "Turn Off All Features?",
+        description: "Save every feature Pared manages as off. Downloaded models stay on your Mac.",
+        confirmTitle: "Turn Off All",
+        pendingChanges: "This replaces your unsaved feature choices with all features off.")
+    case .turnOffAndRemoveAll:
+      QuickActionPresentation(
+        title: "Turn Off Features & Remove Models?",
+        description:
+          "Save every feature Pared manages as off, then review all supported model groups for removal. No model files are removed at this step.",
+        confirmTitle: "Turn Off & Review Removal",
+        pendingChanges: "This replaces your unsaved feature choices with all features off.")
+    case .enableFeature(let name):
+      QuickActionPresentation(
+        title: "Get \(featureTitle ?? name) Models?",
+        description:
+          "Turn this feature on in your choices. Next, install the updated profile and request its models. Other features keep their current choices.",
+        confirmTitle: "Enable & Continue",
+        pendingChanges: "Your other unsaved feature choices will also be saved.")
+    }
+  }
+}
+
+struct QuickActionPresentation {
+  let title: String
+  let description: String
+  let confirmTitle: String
+  let pendingChanges: String
+}
+
+struct FeatureChoiceCount: Identifiable {
+  let state: FeatureState
+  let count: Int
+  var id: FeatureState { state }
+  var summary: String { "\(count) \(state.title.lowercased())" }
+}
+
+struct FeaturePresentationGroup: Identifiable {
+  let group: FeatureGroup
+  let features: [FeaturePresentation]
+  var id: FeatureGroup { group }
 }
 
 enum GUIFeatureFilter: Hashable, CaseIterable, Identifiable {

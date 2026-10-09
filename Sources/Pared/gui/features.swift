@@ -93,44 +93,10 @@ struct FeaturesPane: View {
           }
         )
       ) {
-        let groups = Dictionary(grouping: filtered, by: \.group)
-        ForEach(FeatureGroup.allCases, id: \.self) { group in
-          if let members = groups[group] {
-            Section(group.rawValue) {
-              ForEach(members) { feature in
-                HStack(spacing: 10) {
-                  Image(systemName: feature.symbol).frame(width: 20).foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                  Text(feature.title).lineLimit(2).help(feature.title)
-                  Spacer(minLength: 4)
-                  Text(store.draft.state(feature.id).title)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(.quaternary, in: Capsule())
-                    .fixedSize()
-                  if store.draft.state(feature.id) != store.policy.state(feature.id) {
-                    Image(systemName: "pencil").font(.caption)
-                      .accessibilityLabel("Unsaved change")
-                  }
-                }
-                .padding(.vertical, 4)
-                .tag(feature.id)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(feature.title)
-                .accessibilityValue(
-                  store.draft.state(feature.id).title
-                    + (store.draft.state(feature.id) != store.policy.state(feature.id)
-                      ? ", unsaved change" : "")
-                )
-                .contextMenu {
-                  ForEach(FeatureState.allCases, id: \.self) { state in
-                    Button(state.title, systemImage: state.symbol) {
-                      store.setFeature(feature.id, to: state)
-                    }
-                  }
-                  .disabled(!store.canEditChoices)
-                }
-              }
+        ForEach(store.featureGroups) { group in
+          Section(group.group.rawValue) {
+            ForEach(group.features) { feature in
+              FeatureListRow(store: store, feature: feature).tag(feature.id)
             }
           }
         }
@@ -157,17 +123,42 @@ struct FeaturesPane: View {
       Divider()
       HStack {
         Menu("Set All Features") {
-          ForEach(FeatureState.allCases, id: \.self) { state in
-            Button(state.bulkActionTitle) { store.setAll(state) }
-          }
+          FeatureStateActions(store: store)
         }
         .disabled(!store.canEditChoices)
         Spacer()
-        Button("Discard Changes", action: store.discardChanges)
-          .disabled(store.working || !store.hasChanges)
+        GUIActionButton(store: store, action: .discard)
       }
       .padding(12)
     }
+  }
+}
+
+private struct FeatureListRow: View {
+  let store: GUIStore
+  let feature: FeaturePresentation
+
+  private var state: FeatureState { store.draft.state(feature.id) }
+  private var changed: Bool { state != store.policy.state(feature.id) }
+
+  var body: some View {
+    HStack(spacing: 10) {
+      Image(systemName: feature.symbol).frame(width: 20).foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+      Text(feature.title).lineLimit(2).help(feature.title)
+      Spacer(minLength: 4)
+      ChoiceBadge(title: state.title)
+      if changed {
+        Image(systemName: "pencil").font(.caption).accessibilityLabel("Unsaved change")
+      }
+    }
+    .padding(.vertical, 4)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .contentShape(Rectangle())
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(feature.title)
+    .accessibilityValue(state.title + (changed ? ", unsaved change" : ""))
+    .contextMenu { FeatureStateActions(store: store, feature: feature.id) }
   }
 }
 
@@ -183,148 +174,136 @@ private struct FeatureDetail: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        PageHeading(
-          title: presentation.title,
-          description: feature.description == presentation.title ? "" : feature.description,
-          symbol: presentation.symbol)
-        GroupBox("Your choice") {
-          VStack(alignment: .leading, spacing: 12) {
-            Picker(
-              "Feature state",
-              selection: Binding(
-                get: { store.draft.state(name) },
-                set: { store.setFeature(name, to: $0) }
-              )
-            ) {
-              ForEach(FeatureState.allCases, id: \.self) { state in
-                Text(state.title).tag(state)
+    GUIPage(padding: 24, maximumWidth: 700) {
+      PageHeading(
+        title: presentation.title,
+        description: feature.description == presentation.title ? "" : feature.description,
+        symbol: presentation.symbol)
+      SettingsGroup(title: "Your choice") {
+        Picker(
+          "Feature state",
+          selection: Binding(
+            get: { store.draft.state(name) },
+            set: { store.setFeature(name, to: $0) }
+          )
+        ) {
+          ForEach(FeatureState.allCases, id: \.self) { state in
+            Text(state.title).tag(state)
+          }
+        }
+        .pickerStyle(.segmented).labelsHidden()
+        .accessibilityLabel("Your choice for \(presentation.title)")
+        .disabled(!store.canEditChoices)
+        Text(store.draft.state(name).detail).font(.callout).foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if !store.policyExists {
+          Text("Draft choice · save to apply")
+            .font(.caption).foregroundStyle(.secondary)
+        } else if store.draft.state(name) != store.policy.state(name) {
+          Label(
+            "Unsaved · currently \(store.policy.state(name).title.lowercased()) in your policy",
+            systemImage: "pencil"
+          )
+          .font(.caption).foregroundStyle(.secondary)
+        }
+      }
+      if feature.modelAvailabilityOnly {
+        InlineMessage(
+          title: "Model availability only",
+          message:
+            "This choice controls whether Pared retains these models. It does not change the feature’s settings in its Apple app.",
+          symbol: "cube")
+      } else if feature.managementRequired {
+        VStack(alignment: .leading, spacing: 8) {
+          Label(
+            requiresDeviceManagement ? "Requires device management" : "Applies through a profile",
+            systemImage: "doc.badge.gearshape"
+          )
+          .font(.callout.weight(.medium))
+          Text(
+            requiresDeviceManagement
+              ? "Pared’s profile controls model downloads. Restricting the feature itself requires supervised device management."
+              : "Save your choice, then install the updated profile in System Settings. Installed status does not confirm these controls are enforced."
+          )
+          .font(.callout).foregroundStyle(.secondary)
+          GUIActionButton(store: store, action: .show(.profile), title: "Review Setup")
+            .buttonStyle(.link)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      if let note = feature.display?.note {
+        Text(note).font(.callout).foregroundStyle(.secondary)
+      }
+      if !feature.preferences.isEmpty {
+        SettingsGroup(title: "Current Settings") {
+          if let error = store.statusError {
+            Text(error).foregroundStyle(.secondary).textSelection(.enabled)
+          } else if let status {
+            ForEach(status.preferences) { preference in
+              VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                  let definition = feature.preferences.first {
+                    $0.id == preference.id
+                  }
+                  Text(definition?.title ?? preference.key).fontWeight(.medium)
+                  Spacer()
+                  let inverted =
+                    definition?.inverted ?? false
+                  Text(
+                    preference.value.map { $0 != inverted ? "Enabled" : "Disabled" }
+                      ?? "Not set")
+                }
+                if preference.forced {
+                  Label("Enforced by a management profile", systemImage: "lock")
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+              }
+              .textSelection(.enabled)
+            }
+            Text(
+              "These values reflect mapped preferences, not complete feature availability. Relaunch affected apps after saving."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Preference Details") {
+              ForEach(status.preferences) { preference in
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("\(preference.domain) · \(preference.key)")
+                    .font(.caption.monospaced()).textSelection(.enabled)
+                  Text(
+                    "Raw value: "
+                      + (preference.value.map { $0 ? "true" : "false" } ?? "not set")
+                  )
+                  .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(.top, 6)
               }
             }
-            .pickerStyle(.segmented).labelsHidden()
-            .accessibilityLabel("Your choice for \(presentation.title)")
-            .disabled(!store.canEditChoices)
-            Text(store.draft.state(name).detail).font(.callout).foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-            if !store.policyExists {
-              Text("Draft choice · save to apply")
-                .font(.caption).foregroundStyle(.secondary)
-            } else if store.draft.state(name) != store.policy.state(name) {
-              Label(
-                "Unsaved · currently \(store.policy.state(name).title.lowercased()) in your policy",
-                systemImage: "pencil"
+          } else {
+            Text("Preferences have not been checked yet.").foregroundStyle(.secondary)
+          }
+        }
+        .font(.callout)
+      }
+      if !feature.assetSets.isEmpty {
+        SettingsGroup(title: "Models Used") {
+          ForEach(feature.assetSets, id: \.self) { asset in
+            VStack(alignment: .leading, spacing: 4) {
+              Text(store.modelTitle(asset)).fontWeight(.medium)
+              Text(
+                store.modelStatuses[asset]?.summary ?? "Not checked yet"
               )
               .font(.caption).foregroundStyle(.secondary)
             }
           }
-          .padding(8).frame(maxWidth: .infinity, alignment: .leading)
-        }
-        if feature.modelAvailabilityOnly {
-          InlineMessage(
-            title: "Model availability only",
-            message:
-              "This choice controls whether Pared retains these models. It does not change the feature’s settings in its Apple app.",
-            symbol: "cube")
-        } else if feature.managementRequired {
-          VStack(alignment: .leading, spacing: 8) {
-            Label(
-              requiresDeviceManagement ? "Requires device management" : "Applies through a profile",
-              systemImage: "doc.badge.gearshape"
-            )
-            .font(.callout.weight(.medium))
-            Text(
-              requiresDeviceManagement
-                ? "Pared’s profile controls model downloads. Restricting the feature itself requires supervised device management."
-                : "Save your choice, then install the updated profile in System Settings. Installed status does not confirm these controls are enforced."
-            )
-            .font(.callout).foregroundStyle(.secondary)
-            Button("Review Setup") { store.section = .profile }
-              .buttonStyle(.link)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        if let note = feature.display?.note {
-          Text(note).font(.callout).foregroundStyle(.secondary)
-        }
-        if !feature.preferences.isEmpty {
-          GroupBox("Current Settings") {
-            VStack(alignment: .leading, spacing: 12) {
-              if let error = store.statusError {
-                Text(error).foregroundStyle(.secondary).textSelection(.enabled)
-              } else if let status {
-                ForEach(status.preferences) { preference in
-                  VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline) {
-                      let definition = feature.preferences.first {
-                        $0.id == preference.id
-                      }
-                      Text(definition?.title ?? preference.key).fontWeight(.medium)
-                      Spacer()
-                      let inverted =
-                        definition?.inverted ?? false
-                      Text(
-                        preference.value.map { $0 != inverted ? "Enabled" : "Disabled" }
-                          ?? "Not set")
-                    }
-                    if preference.forced {
-                      Label("Enforced by a management profile", systemImage: "lock")
-                        .font(.caption).foregroundStyle(.secondary)
-                    }
-                  }
-                  .textSelection(.enabled)
-                }
-                Text(
-                  "These values reflect mapped preferences, not complete feature availability. Relaunch affected apps after saving."
-                )
-                .font(.caption).foregroundStyle(.secondary)
-                DisclosureGroup("Preference Details") {
-                  ForEach(status.preferences) { preference in
-                    VStack(alignment: .leading, spacing: 4) {
-                      Text("\(preference.domain) · \(preference.key)")
-                        .font(.caption.monospaced()).textSelection(.enabled)
-                      Text(
-                        "Raw value: "
-                          + (preference.value.map { $0 ? "true" : "false" } ?? "not set")
-                      )
-                      .font(.caption).foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 6)
-                  }
-                }
-              } else {
-                Text("Preferences have not been checked yet.").foregroundStyle(.secondary)
-              }
-            }
-            .font(.callout).padding(8).frame(maxWidth: .infinity, alignment: .leading)
+          Text("Shared models remain if any known consumer is enabled or unmanaged.")
+            .font(.caption).foregroundStyle(.secondary)
+          Button("Show Models") {
+            store.selectedModel = feature.assetSets.first
+            store.section = .models
           }
         }
-        if !feature.assetSets.isEmpty {
-          GroupBox("Models Used") {
-            VStack(alignment: .leading, spacing: 12) {
-              ForEach(feature.assetSets, id: \.self) { asset in
-                VStack(alignment: .leading, spacing: 4) {
-                  Text(store.modelTitle(asset)).fontWeight(.medium)
-                  Text(
-                    store.modelStatuses[asset]?.summary ?? "Not checked yet"
-                  )
-                  .font(.caption).foregroundStyle(.secondary)
-                }
-              }
-              Text("Shared models remain if any known consumer is enabled or unmanaged.")
-                .font(.caption).foregroundStyle(.secondary)
-              Button("Show Models") {
-                store.selectedModel = feature.assetSets.first
-                store.section = .models
-              }
-            }
-            .padding(8).frame(maxWidth: .infinity, alignment: .leading)
-          }
-        }
-        DiagnosticsDisclosure(text: store.lastDiagnostics)
       }
-      .padding(24).frame(maxWidth: 700, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .top)
+      DiagnosticsDisclosure(text: store.lastDiagnostics)
     }
   }
 

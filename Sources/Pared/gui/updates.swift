@@ -29,6 +29,10 @@ final class GUIUpdater {
 
   var available: Bool { controller != nil }
 
+  func canCheck(in store: GUIStore) -> Bool {
+    canCheck && !store.working && !store.hasChanges
+  }
+
   var version: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
       ?? "Development build"
@@ -89,58 +93,62 @@ struct UpdatesPane: View {
   @Bindable var store: GUIStore
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 22) {
-        PageHeading(
-          title: "Updates & Changelog",
-          description: "Keep Pared up to date and see what’s changed.",
-          symbol: "arrow.down.circle")
-        GroupBox("Pared \(updates.version)") {
-          VStack(alignment: .leading, spacing: 12) {
-            if updates.available {
-              // Swift 6.2.4 crashes on actor-isolated method references in
-              // Binding
-              Toggle(
-                "Automatically check for updates",
-                isOn: Binding(
-                  get: { updates.automaticChecks }, set: { updates.setAutomaticChecks($0) }))
-              Toggle(
-                "Download and install updates automatically",
-                isOn: Binding(
-                  get: { updates.automaticDownloads }, set: { updates.setAutomaticDownloads($0) })
-              )
-              .disabled(!updates.automaticChecks)
-              Text("Updates are checked daily. Automatic installation happens when you quit Pared.")
-                .font(.callout).foregroundStyle(.secondary)
-              if store.working || store.hasChanges {
-                Text(
-                  "Finish the current operation and save or discard your changes before updating."
-                )
-                .font(.callout).foregroundStyle(.secondary)
-              }
-              HStack {
-                Button("Check for Updates…", action: updates.check)
-                  .disabled(!updates.canCheck || store.working || store.hasChanges)
-                if let checked = updates.lastChecked {
-                  Text("Last checked \(checked.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-              }
-            } else {
-              Text(updates.unavailableReason ?? "Starting the updater…")
-                .foregroundStyle(.secondary).textSelection(.enabled)
-            }
-            Link(
-              "Published Releases",
-              destination: URL(string: "https://github.com/4evy/pared/releases")!)
+    GUIPage(spacing: 22) {
+      PageHeading(
+        title: "Updates & Changelog",
+        description: "Keep Pared up to date and see what’s changed.",
+        symbol: "arrow.down.circle")
+      SettingsGroup(title: "Pared \(updates.version)") {
+        if updates.available {
+          // Swift 6.2.4 crashes on actor-isolated method references in
+          // Binding
+          Toggle(
+            "Automatically check for updates",
+            isOn: Binding(
+              get: { updates.automaticChecks }, set: { updates.setAutomaticChecks($0) }))
+          Toggle(
+            "Download and install updates automatically",
+            isOn: Binding(
+              get: { updates.automaticDownloads }, set: { updates.setAutomaticDownloads($0) })
+          )
+          .disabled(!updates.automaticChecks)
+          Text("Updates are checked daily. Automatic installation happens when you quit Pared.")
+            .font(.callout).foregroundStyle(.secondary)
+          if store.working || store.hasChanges {
+            Text(
+              "Finish the current operation and save or discard your changes before updating."
+            )
+            .font(.callout).foregroundStyle(.secondary)
           }
-          .frame(maxWidth: .infinity, alignment: .leading).padding(8)
+          HStack {
+            CheckForUpdatesButton(updates: updates, store: store)
+            if let checked = updates.lastChecked {
+              Text("Last checked \(checked.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption).foregroundStyle(.secondary)
+            }
+          }
+        } else {
+          Text(updates.unavailableReason ?? "Starting the updater…")
+            .foregroundStyle(.secondary).textSelection(.enabled)
         }
-        ChangelogView()
+        Link(
+          "Published Releases",
+          destination: URL(string: "https://github.com/4evy/pared/releases")!)
       }
-      .padding(28).frame(maxWidth: 860, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .top)
+      ChangelogView()
     }
+  }
+}
+
+struct CheckForUpdatesButton: View {
+  let updates: GUIUpdater
+  let store: GUIStore
+
+  var body: some View {
+    Button("Check for Updates…") {
+      if updates.canCheck(in: store) { updates.check() }
+    }
+    .disabled(!updates.canCheck(in: store))
   }
 }
 

@@ -47,7 +47,7 @@ struct ModelQuitReview: View {
       Button("Inspect With Administrator Access", action: store.inspectModelHoldersAsAdministrator)
         .disabled(store.working)
     } actions: {
-      Button("Cancel") { store.modelQuitReview = nil }
+      Button("Cancel") { store.review = nil }
         .keyboardShortcut(.cancelAction)
         .disabled(store.working)
       Spacer()

@@ -41,9 +41,7 @@ final class GUIStore {
   private(set) var profileNeedsReplacement = false
   private(set) var lastDiagnostics = ""
   var issue: GUIIssue?
-  var cleanupReview: ModelCleanupOffer?
-  var modelQuitReview: ModelQuitOffer?
-  var quickActionReview: GUIQuickAction?
+  var review: GUIReview?
   private(set) var downloadPreparation: String?
 
   init(policyURL: URL? = nil) {
@@ -61,6 +59,20 @@ final class GUIStore {
 
   var features: [FeaturePresentation] {
     catalog?.presentations ?? []
+  }
+
+  var choiceCounts: [FeatureChoiceCount] {
+    let counts = Dictionary(grouping: features, by: { draft.state($0.id) }).mapValues(\.count)
+    return FeatureState.allCases.map {
+      FeatureChoiceCount(state: $0, count: counts[$0, default: 0])
+    }
+  }
+
+  var featureGroups: [FeaturePresentationGroup] {
+    let groups = Dictionary(grouping: filteredFeatures, by: \.group)
+    return FeatureGroup.allCases.compactMap { group in
+      groups[group].map { FeaturePresentationGroup(group: group, features: $0) }
+    }
   }
 
   func presentation(_ name: String) -> FeaturePresentation {
@@ -90,12 +102,12 @@ final class GUIStore {
 
   func reviewQuickAction(_ action: GUIQuickAction) {
     guard canEditChoices else { return }
-    quickActionReview = action
+    review = .quickAction(action)
   }
 
   func confirmQuickAction() {
-    guard canEditChoices, let action = quickActionReview else { return }
-    quickActionReview = nil
+    guard canEditChoices, case .quickAction(let action) = review else { return }
+    review = nil
     switch action {
     case .turnOffAll, .turnOffAndRemoveAll:
       downloadPreparation = nil
@@ -368,8 +380,7 @@ final class GUIStore {
     profileError = nil
     profileNeedsReplacement = false
     downloadPreparation = nil
-    quickActionReview = nil
-    cleanupReview = nil
+    review = nil
     lastDiagnostics = ""
     notice = nil
     noticeDestination = nil
@@ -427,15 +438,16 @@ final class GUIStore {
       guard (plan.targets + plan.skipped.map(\.name)).sorted() == cleanupTargets.sorted() else {
         throw CLIError("The removal preview changed. Refresh and review it again.")
       }
-      cleanupReview = ModelCleanupOffer(plan: plan)
+      review = .cleanup(ModelCleanupOffer(plan: plan))
     }
   }
 
   func removeReviewedModels() {
-    guard canUseSavedPolicy, let reviewed = cleanupReview?.targets, !reviewed.isEmpty else {
+    guard canUseSavedPolicy, case .cleanup(let offer) = review, !offer.targets.isEmpty else {
       return
     }
-    cleanupReview = nil
+    let reviewed = offer.targets
+    review = nil
     guard Set(reviewed).isSubset(of: Set(cleanupTargets)) else {
       issue = GUIIssue(
         title: "Removal preview changed", message: "Review the model selection again.")
@@ -519,7 +531,7 @@ final class GUIStore {
             }.joined(separator: "\n")
             + "\nOpen files do not prove which process blocked removal."
         }
-        modelQuitReview = ModelQuitOffer(assets: assets, holders: holders)
+        review = .modelUsers(ModelQuitOffer(assets: assets, holders: holders))
       } else {
         try result.requireSuccess()
         if command == .download, let name = names.first, downloadPreparation == name {
@@ -532,21 +544,21 @@ final class GUIStore {
   }
 
   func quitReviewedModelApps(force: Bool = false) {
-    guard !working, let review = modelQuitReview else { return }
-    modelQuitReview = nil
+    guard !working, case .modelUsers(let offer) = review else { return }
+    review = nil
     performActivity(
       title: force ? "Force-quitting apps…" : "Asking apps to quit…",
       failureTitle: "Model cleanup could not be completed", refreshAfterward: true
     ) { [self] in
       try verifyPolicyUnchanged()
-      guard Set(review.assets.map(\.name)).isSubset(of: Set(cleanupTargets)) else {
+      guard Set(offer.assets.map(\.name)).isSubset(of: Set(cleanupTargets)) else {
         throw CLIError("The eligible models changed. Review removal again.")
       }
       let messages: [String]
       let remaining: [ModelHolder]
       if force {
         let request = ModelHolderRequest(
-          action: .force, assetSets: review.assets.map(\.name), reviewed: review.holders,
+          action: .force, assetSets: offer.assets.map(\.name), reviewed: offer.holders,
           policyURL: policyURL, policySnapshot: try JSONEncoder().encode(policy))
         let response =
           request.requiresAdministrator
@@ -555,13 +567,13 @@ final class GUIStore {
         messages = response.messages
         remaining = response.holders
       } else {
-        messages = try await quitModelHolders(review.holders, assets: review.assets)
-        remaining = try await modelHolders(review.assets)
+        messages = try await quitModelHolders(offer.holders, assets: offer.assets)
+        remaining = try await modelHolders(offer.assets)
       }
       lastDiagnostics += "\n" + messages.joined(separator: "\n")
       if force && remaining.isEmpty {
         try verifyPolicyUnchanged()
-        let targets = review.assets.map(\.name).sorted()
+        let targets = offer.assets.map(\.name).sorted()
         guard Set(targets).isSubset(of: Set(cleanupTargets)) else {
           throw CLIError("The eligible models changed. Review removal again.")
         }
@@ -582,7 +594,7 @@ final class GUIStore {
             "Holder recheck finished and removal was retried. No selected model folders remain."
         }
       } else if force {
-        modelQuitReview = ModelQuitOffer(assets: review.assets, holders: remaining)
+        review = .modelUsers(ModelQuitOffer(assets: offer.assets, holders: remaining))
         notice =
           "Model users remain or restarted. Review the current holders before another attempt."
       } else {
@@ -593,17 +605,17 @@ final class GUIStore {
   }
 
   func inspectModelHoldersAsAdministrator() {
-    guard !working, let review = modelQuitReview else { return }
+    guard !working, case .modelUsers(let offer) = review else { return }
     busy = true
     activity = "Inspecting model users with administrator access…"
     Task {
       do {
         try verifyPolicyUnchanged()
         let response = try await administratorModelHolders(
-          ModelHolderRequest(action: .inspect, assetSets: review.assets.map(\.name), reviewed: []))
-        modelQuitReview = ModelQuitOffer(assets: review.assets, holders: response.holders)
+          ModelHolderRequest(action: .inspect, assetSets: offer.assets.map(\.name), reviewed: []))
+        review = .modelUsers(ModelQuitOffer(assets: offer.assets, holders: response.holders))
       } catch {
-        modelQuitReview = nil
+        review = nil
         issue = GUIIssue(
           title: "Model users could not be inspected", message: String(describing: error))
       }

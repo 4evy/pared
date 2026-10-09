@@ -46,82 +46,7 @@ struct ParedApp: App {
         }
     }
     .defaultSize(width: 1120, height: 760)
-    .commands {
-      CommandGroup(after: .appInfo) {
-        Button("Check for Updates…", action: updates.check)
-          .disabled(!updates.canCheck || store.working || store.hasChanges)
-        Button("Changelog") { store.section = .updates }
-      }
-      CommandGroup(replacing: .newItem) {
-        Button("Open Settings File…", action: store.choosePolicy)
-          .keyboardShortcut("o")
-          .disabled(store.working)
-        Button("Use Default Settings", action: store.useDefaultPolicy)
-          .disabled(store.working || store.policyURL == Policy.defaultURL)
-      }
-      CommandGroup(replacing: .saveItem) {
-        Button("Save Changes", action: store.save)
-          .keyboardShortcut("s")
-          .disabled(!store.canSave)
-        Button("Discard Changes", action: store.discardChanges)
-          .disabled(store.working || !store.hasChanges)
-        Button("Review Changes", action: store.showChanges)
-          .disabled(!store.hasChanges)
-        Divider()
-        Button("Export Profile…", action: store.exportProfile)
-          .disabled(!store.canUseSavedPolicy)
-      }
-      CommandMenu("Actions") {
-        Button("Refresh Status", action: store.refresh)
-          .keyboardShortcut("r")
-          .disabled(store.working)
-        Button("Install Profile…", action: store.openProfile)
-          .keyboardShortcut("i", modifiers: [.command, .shift])
-          .disabled(!store.canUseSavedPolicy)
-        Button("Review Model Removal…", action: store.reviewCleanup)
-          .disabled(!store.canUseSavedPolicy || store.cleanupTargets.isEmpty)
-        Divider()
-        Menu("Set Selected Feature") {
-          ForEach(FeatureState.allCases, id: \.self) { state in
-            Button(state.title) {
-              if let name = store.selectedFeature { store.setFeature(name, to: state) }
-            }
-          }
-        }
-        .disabled(
-          store.section != .features || store.selectedFeature == nil || !store.canEditChoices)
-        Menu("Set All Features") {
-          ForEach(FeatureState.allCases, id: \.self) { state in
-            Button(state.bulkActionTitle) { store.setAll(state) }
-          }
-        }
-        .disabled(!store.canEditChoices)
-        Button("Turn Off All…") { store.reviewQuickAction(.turnOffAll) }
-          .disabled(!store.canEditChoices)
-        Button("Turn Off & Review Removal…") { store.reviewQuickAction(.turnOffAndRemoveAll) }
-          .disabled(!store.canEditChoices)
-        Menu("Download Models") {
-          ForEach(store.downloadFeatures) { feature in
-            Button(feature.title) { store.download(feature.id) }
-              .disabled(!store.canUseSavedPolicy || store.policy.state(feature.id) != .enabled)
-          }
-        }
-      }
-      CommandGroup(after: .textEditing) {
-        Button("Find Features", action: store.findFeatures)
-          .keyboardShortcut("f")
-      }
-      CommandGroup(after: .sidebar) {
-        ForEach(GUISection.allCases.enumerated(), id: \.element) { index, section in
-          Button("Show \(section.rawValue)") { store.section = section }
-            .keyboardShortcut(KeyEquivalent(Character(String(index + 1))))
-        }
-      }
-      CommandGroup(replacing: .help) {
-        Link("Pared Help", destination: URL(string: "https://github.com/4evy/pared#use")!)
-        Button("Changelog") { store.section = .updates }
-      }
-    }
+    .commands { GUICommands(store: store, updates: updates) }
   }
 }
 
@@ -132,16 +57,16 @@ struct ParedWindow: View {
   var body: some View {
     NavigationSplitView {
       List(selection: $store.section) {
-        Label(GUISection.overview.rawValue, systemImage: GUISection.overview.symbol)
-          .tag(GUISection.overview)
-        Section("Customize") {
-          ForEach([GUISection.features, .models, .profile]) { section in
-            Label(section.rawValue, systemImage: section.symbol).tag(section)
+        ForEach(GUISidebarGroup.allCases) { group in
+          if group == .primary {
+            sidebarRows(group)
+          } else {
+            Section {
+              sidebarRows(group)
+            } header: {
+              if let title = group.title { Text(title) }
+            }
           }
-        }
-        Section {
-          Label(GUISection.updates.rawValue, systemImage: GUISection.updates.symbol)
-            .tag(GUISection.updates)
         }
       }
       .navigationSplitViewColumnWidth(min: 160, ideal: 185, max: 240)
@@ -152,10 +77,7 @@ struct ParedWindow: View {
             .font(.callout.weight(.medium))
             .help(store.policyURL.path)
           if store.loaded && (store.policyExists || store.hasChanges) {
-            let on = store.features.count { store.draft.state($0.id) == .enabled }
-            let off = store.features.count { store.draft.state($0.id) == .disabled }
-            let defaults = store.features.count { store.draft.state($0.id) == .unmanaged }
-            Text("\(on) on · \(off) off · \(defaults) default")
+            Text(store.choiceCounts.map(\.summary).joined(separator: " · "))
               .font(.caption).foregroundStyle(.secondary)
           }
         }
@@ -173,7 +95,7 @@ struct ParedWindow: View {
           HStack(spacing: 12) {
             InlineMessage(title: nil, message: notice, symbol: "info.circle")
             if let destination = store.noticeDestination, destination != store.section {
-              Button("Show \(destination.rawValue)") { store.section = destination }
+              GUIActionButton(store: store, action: .show(destination))
             }
             Button("Dismiss", systemImage: "xmark", action: store.dismissNotice)
               .labelStyle(.iconOnly).buttonStyle(.borderless).help("Dismiss message")
@@ -207,8 +129,9 @@ struct ParedWindow: View {
             Image(systemName: store.hasChanges ? "pencil.circle" : "doc")
               .accessibilityHidden(true)
             if store.hasChanges {
-              Button(
-                "Review \(store.changedNames.count) unsaved changes", action: store.showChanges
+              GUIActionButton(
+                store: store, action: .reviewChanges,
+                title: "Review \(store.changedNames.count) unsaved changes"
               )
               .buttonStyle(.link)
             } else {
@@ -221,10 +144,9 @@ struct ParedWindow: View {
           if store.section != .updates {
             Menu {
               Text(store.policyURL.path)
-              Button("Open Settings File…", action: store.choosePolicy)
-                .disabled(store.working)
-              Button("Use Default Settings", action: store.useDefaultPolicy)
-                .disabled(store.working || store.policyURL == Policy.defaultURL)
+              ForEach(GUIAction.settings) { action in
+                GUIActionButton(store: store, action: action)
+              }
             } label: {
               Label("Settings File", systemImage: "folder")
             }
@@ -238,16 +160,16 @@ struct ParedWindow: View {
       .toolbar {
         if store.section != .updates {
           ToolbarItem {
-            Button("Refresh", systemImage: "arrow.clockwise", action: store.refresh)
-              .labelStyle(.iconOnly).help("Refresh status (⌘R)")
-              .disabled(store.working)
+            GUIActionButton(
+              store: store, action: .refresh, title: "Refresh", symbol: "arrow.clockwise"
+            )
+            .labelStyle(.iconOnly).help("Refresh status (⌘R)")
           }
         }
         if store.hasChanges || (!store.policyExists && store.section != .updates) {
           ToolbarItem(placement: .primaryAction) {
-            Button(store.policyExists ? "Save Changes" : "Save Choices", action: store.save)
+            GUIActionButton(store: store, action: .save)
               .buttonStyle(.borderedProminent)
-              .disabled(!store.canSave)
               .help("Save your choices and apply local settings (⌘S)")
           }
         }
@@ -260,105 +182,14 @@ struct ParedWindow: View {
       Alert(
         title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
     }
-    .sheet(item: $store.cleanupReview) { review in
-      CleanupReview(store: store, review: review)
-    }
-    .sheet(item: $store.modelQuitReview) { review in
-      ModelQuitReview(store: store, review: review)
-    }
-    .sheet(item: $store.quickActionReview) { action in
-      QuickActionReview(store: store, action: action)
+    .sheet(item: $store.review) { review in
+      GUIReviewView(store: store, review: review)
     }
   }
-}
 
-struct ReviewSheet<Content: View, Actions: View>: View {
-  let title: String
-  let description: String
-  let symbol: String
-  @ViewBuilder var content: () -> Content
-  @ViewBuilder var actions: () -> Actions
-
-  var body: some View {
-    VStack(spacing: 0) {
-      PageHeading(title: title, description: description, symbol: symbol)
-        .padding(24)
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16, content: content)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 24).padding(.bottom, 24)
-      }
-      .defaultScrollAnchor(.top)
-      .frame(maxHeight: 300)
-      Divider()
-      HStack(spacing: 10, content: actions)
-        .padding(20)
-    }
-    .frame(width: 540)
-  }
-}
-
-struct InlineMessage: View {
-  let title: String?
-  let message: String
-  let symbol: String
-  var isError = false
-
-  var body: some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: symbol)
-        .foregroundStyle(isError ? Color.orange : Color.secondary)
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 3) {
-        if let title { Text(title).fontWeight(.medium).accessibilityAddTraits(.isHeader) }
-        Text(message).foregroundStyle(.secondary).textSelection(.enabled)
-      }
-      Spacer(minLength: 0)
-    }
-    .font(.callout)
-    .padding(14)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.quaternary.opacity(0.5))
-    .accessibilityElement(children: .combine)
-  }
-}
-
-struct PageHeading: View {
-  let title: String
-  let description: String
-  let symbol: String
-
-  var body: some View {
-    HStack(alignment: .top, spacing: 14) {
-      Image(systemName: symbol).font(.system(size: 24, weight: .medium)).foregroundStyle(.tint)
-        .frame(width: 48, height: 48)
-        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 6) {
-        Text(title).font(.title.weight(.semibold)).accessibilityAddTraits(.isHeader)
-        if !description.isEmpty {
-          Text(description).font(.callout).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
-      Spacer(minLength: 0)
-    }
-    .padding(.bottom, 8)
-  }
-}
-
-struct DiagnosticsDisclosure: View {
-  let text: String
-
-  var body: some View {
-    if !text.isEmpty {
-      DisclosureGroup("Operation Details") {
-        ScrollView {
-          Text(text).font(.caption.monospaced()).textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxHeight: 180).padding(.top, 8)
-      }
+  private func sidebarRows(_ group: GUISidebarGroup) -> some View {
+    ForEach(group.sections) { section in
+      Label(section.rawValue, systemImage: section.symbol).tag(section)
     }
   }
 }
