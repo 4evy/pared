@@ -68,13 +68,14 @@ actor GUICommandRunner {
       }
       return url
     }
+    var arguments: [String] = command.arguments + names
+    if dryRun { arguments.append("--dry-run") }
+    if cleanupReview { arguments.append("--review") }
+    for assetSet in reviewedAssetSets { arguments += ["--asset-set", assetSet] }
+    if let explicitPolicy { arguments += ["--policy", explicitPolicy.path] }
     let result = try await Subprocess.run(
       .path(.init(executable.path)),
-      arguments: Arguments(
-        command.arguments + names + (dryRun ? ["--dry-run"] : [])
-          + (cleanupReview ? ["--review"] : [])
-          + reviewedAssetSets.flatMap { ["--asset-set", $0] }
-          + (explicitPolicy.map { ["--policy", $0.path] } ?? [])),
+      arguments: Arguments(arguments),
       output: .data(limit: .max), error: .string(limit: .max))
     if case .signaled(let signal) = result.terminationStatus {
       throw CLIError(
