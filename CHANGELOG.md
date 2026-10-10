@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- The Nix package builds with Swift 6.2.4 again; the GUI command runner no
+  longer hits the type checker's time limit when assembling CLI arguments
+
 ## 2.2.0 — 2026-10-09
 
 ### Added
