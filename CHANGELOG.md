@@ -6,6 +6,8 @@
 
 - The Nix package builds with Swift 6.2.4 again; the GUI command runner no
   longer hits the type checker's time limit when assembling CLI arguments
+- The Nix package builds with Swift 6.4 and the macOS 27 SDK without Apple's
+  SwiftUI macro plugin by explicitly selecting the State property wrapper
 
 ## 2.2.0 — 2026-10-09
 

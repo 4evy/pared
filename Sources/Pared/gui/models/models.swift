@@ -2,8 +2,8 @@ import SwiftUI
 
 struct ModelsPane: View {
   @Bindable var store: GUIStore
-  @State private var sortOrder = [KeyPathComparator(\ModelRow.title)]
-  @State private var showsDownloads = false
+  @GUIState private var sortOrder = [KeyPathComparator(\ModelRow.title)]
+  @GUIState private var showsDownloads = false
 
   private var modelRows: [ModelRow] {
     (store.catalog?.assetTypes.keys.sorted() ?? []).map { asset in

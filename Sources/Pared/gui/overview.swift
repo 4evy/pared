@@ -2,7 +2,7 @@ import SwiftUI
 
 struct OverviewPane: View {
   @Bindable var store: GUIStore
-  @State private var showsDownloads = false
+  @GUIState private var showsDownloads = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var preparingDownload: String? {

@@ -3,8 +3,8 @@ import SwiftUI
 struct FeaturesPane: View {
   @Bindable var store: GUIStore
   @FocusState private var searchFocused: Bool
-  @State private var searchPresented = false
-  @State private var showsCompactDetail = false
+  @GUIState private var searchPresented = false
+  @GUIState private var showsCompactDetail = false
 
   private var filtered: [FeaturePresentation] {
     store.filteredFeatures

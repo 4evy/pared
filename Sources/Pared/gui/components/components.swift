@@ -1,5 +1,9 @@
 import SwiftUI
 
+// Select the property wrapper, not the SDK's State macro, whose Apple plugin
+// is unavailable in the Nix Swift toolchain
+typealias GUIState<Value> = SwiftUI.State<Value>
+
 struct FullWidthDisclosureStyle: DisclosureGroupStyle {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

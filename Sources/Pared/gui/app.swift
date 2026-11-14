@@ -33,8 +33,8 @@ final class GUIAppDelegate: NSObject, NSApplicationDelegate {
 struct ParedApp: App {
   @MainActor static var initialPolicyURL: URL?
   @NSApplicationDelegateAdaptor(GUIAppDelegate.self) private var delegate
-  @State private var store = GUIStore(policyURL: initialPolicyURL)
-  @State private var updates = GUIUpdater()
+  @GUIState private var store = GUIStore(policyURL: initialPolicyURL)
+  @GUIState private var updates = GUIUpdater()
 
   var body: some Scene {
     Window("Pared", id: "main") {
