@@ -13,11 +13,17 @@ struct Policy: Codable, Equatable {
   func state(_ name: String) -> FeatureState { features[name, default: defaultState] }
 
   mutating func set(_ state: FeatureState, for names: some Sequence<String>) {
-    features.merge(names.map { ($0, state) }) { _, requested in requested }
+    for name in names { features[name] = state }
   }
 
-  func managedFeatures(in catalog: Catalog) -> [String: Feature] {
-    catalog.features.filter { state($0.key) != .unmanaged }
+  func managedFeatures(in catalog: Catalog) -> some Sequence<(feature: Feature, enabled: Bool)> {
+    catalog.features.lazy.compactMap { name, feature in
+      switch state(name) {
+      case .enabled: (feature, true)
+      case .disabled: (feature, false)
+      case .unmanaged: nil
+      }
+    }
   }
 
   func changedFeatureNames(from original: Policy, in catalog: Catalog) -> [String] {
@@ -28,9 +34,7 @@ struct Policy: Codable, Equatable {
     guard schemaVersion == Self.supportedSchemaVersion else {
       throw CLIError("Unsupported policy schema version: \(schemaVersion)")
     }
-    for name in features.keys where catalog.features[name] == nil {
-      throw CLIError("Unknown feature: \(name)")
-    }
+    try catalog.validateFeatureNames(features.keys)
   }
 
   static var defaultURL: URL {

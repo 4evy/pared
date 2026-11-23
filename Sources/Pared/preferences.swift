@@ -39,16 +39,15 @@ extension Policy {
   // Include unmanaged features only when removing their local overrides
   func preferenceAssignments(
     in catalog: Catalog, for names: some Sequence<String>, reset: Bool = false
-  ) -> [PreferenceAssignment] {
-    names.flatMap { name -> [PreferenceAssignment] in
-      let state = state(name)
-      guard reset || state != .unmanaged else { return [] }
-      return catalog.features[name]!.preferences.map { preference in
-        PreferenceAssignment(
-          featureName: name, preference: preference,
-          value: preference.value(for: state))
+  ) -> some Sequence<PreferenceAssignment> {
+    names.lazy.map { (name: $0, state: state($0)) }
+      .filter { reset || $0.state != .unmanaged }
+      .flatMap { name, state in
+        catalog.features[name]!.preferences.lazy.map { preference in
+          PreferenceAssignment(
+            featureName: name, preference: preference, value: preference.value(for: state))
+        }
       }
-    }
   }
 }
 

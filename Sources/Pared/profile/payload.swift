@@ -1,12 +1,11 @@
 import Foundation
 
 private func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: ManagementValue]] {
-  let assignments = policy.preferenceAssignments(in: catalog, for: catalog.features.keys).lazy
-    .filter { catalog.preferenceUUIDs[$0.preference.domain] != nil }
-  return Dictionary(grouping: assignments, by: { $0.preference.domain }).mapValues {
-    Dictionary(
-      $0.map { ($0.preference.key, ManagementValue.boolean($0.value)) },
-      uniquingKeysWith: { _, requested in requested })
+  policy.preferenceAssignments(in: catalog, for: catalog.features.keys).reduce(into: [:]) {
+    values, assignment in
+    let preference = assignment.preference
+    guard catalog.preferenceUUIDs[preference.domain] != nil else { return }
+    values[preference.domain, default: [:]][preference.key] = .boolean(assignment.value)
   }
 }
 
@@ -53,11 +52,9 @@ func profileData(policy: Policy, catalog: Catalog) throws -> Data {
     type: "com.apple.applicationaccess",
     identifier: ProfileIdentity.identifier + ".restrictions",
     uuid: ProfileIdentity.restrictionsUUID, displayName: "Apple Intelligence restrictions")
-  restrictions.merge(
-    policy.managedFeatures(in: catalog).flatMap { name, feature in
-      feature.restrictions.map { ($0, ManagementValue.boolean(policy.state(name) == .enabled)) }
-    }
-  ) { _, requested in requested }
+  for (feature, enabled) in policy.managedFeatures(in: catalog) {
+    for key in feature.restrictions { restrictions[key] = .boolean(enabled) }
+  }
   let values = preferenceValues(policy: policy, catalog: catalog)
   // Group forced preferences by domain in separate profile payloads
   let preferencePayloads: [ManagementValue] = values.sorted(by: { $0.key < $1.key }).map {
@@ -131,10 +128,10 @@ private struct ManagementDeclaration: Encodable {
 // Visual Intelligence and Calendar settings requiring macOS 27 or later
 func declarationData(policy: Policy, catalog: Catalog) throws -> Data {
   var groups: [DeclarationGroup: [String: ManagementValue]] = [:]
-  for (name, feature) in policy.managedFeatures(in: catalog) {
+  for (feature, enabled) in policy.managedFeatures(in: catalog) {
     for path in feature.declarations {
       setPath(
-        path.components[...], value: policy.state(name) == .enabled,
+        path.components[...], value: enabled,
         in: &groups[path.group, default: [:]])
     }
   }
