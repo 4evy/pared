@@ -6,8 +6,8 @@
   fetchSwiftPMDeps,
 }:
 assert lib.asserts.assertMsg (
-  lib.versionAtLeast swift.version "6.2.4" && lib.versionAtLeast swiftpm.version "6.2.4"
-) "pared requires Swift and SwiftPM 6.2.4 or newer.";
+  lib.versionAtLeast swift.version "6.4" && lib.versionAtLeast swiftpm.version "6.4"
+) "pared requires Swift and SwiftPM 6.4 or newer.";
 stdenv.mkDerivation (finalAttrs: {
   pname = "pared";
   version = lib.trim (builtins.readFile ../VERSION);

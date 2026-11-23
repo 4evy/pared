@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- Building the CLI and app from source now requires Swift 6.4, matching the Nix
+  toolchain
+
 ### Fixed
 
 - Generated profiles no longer redirect model downloads that macOS updates can
