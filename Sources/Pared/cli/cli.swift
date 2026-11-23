@@ -107,26 +107,37 @@ func persistPolicyChanges(
     throw CLIError("This policy is managed by Nix; change programs.pared.features and reactivate")
   }
   let directory = url.deletingLastPathComponent()
-  let profileURL = directory.appendingPathComponent(Artifacts.profileFilename)
-  let declarationsURL = directory.appendingPathComponent(Artifacts.declarationsFilename)
-  // The two generated destinations need no heap-backed collection
-  let generatedURLs: InlineArray<2, URL> = [profileURL, declarationsURL]
+  let outputs: InlineArray<
+    2, (url: URL, encode: (Policy, Catalog) throws -> Data, label: String)
+  > = [
+    (
+      directory.appendingPathComponent(Artifacts.profileFilename),
+      profileData, "Install the updated profile for managed controls"
+    ),
+    (
+      directory.appendingPathComponent(Artifacts.declarationsFilename),
+      declarationData, "MDM declarations"
+    ),
+  ]
   let policyURL = url.standardizedFileURL.resolvingSymlinksInPath()
   guard
-    !generatedURLs.indices.contains(where: {
-      generatedURLs[$0].standardizedFileURL.resolvingSymlinksInPath() == policyURL
+    !outputs.indices.contains(where: {
+      outputs[$0].url.standardizedFileURL.resolvingSymlinksInPath() == policyURL
     })
   else {
     throw CLIError("The policy path conflicts with a generated artifact; choose another filename")
   }
   try policy.save(url)
-  try profileData(policy: policy, catalog: catalog).write(to: profileURL, options: .atomic)
-  try declarationData(policy: policy, catalog: catalog).write(
-    to: declarationsURL, options: .atomic)
+  for index in outputs.indices {
+    let output = outputs[index]
+    try output.encode(policy, catalog).write(to: output.url, options: .atomic)
+  }
   if reportArtifacts {
     report("Saved policy: \(url.path)")
-    report("Install the updated profile for managed controls: \(profileURL.path)")
-    report("MDM declarations: \(declarationsURL.path)")
+    for index in outputs.indices {
+      let output = outputs[index]
+      report("\(output.label): \(output.url.path)")
+    }
   }
   try applyPreferences(policy: policy, catalog: catalog, names: names, reset: reset)
   if reportArtifacts {
