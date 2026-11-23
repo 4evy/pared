@@ -57,14 +57,15 @@ func recoverModels(
   for name in names {
     let feature = catalog.features[name]!
     let recovery = feature.recovery!
+    guard !recovery.usageAliases.isEmpty else { continue }
+    let allowed = Set(feature.downloadAssetSets)
     // The bridge validates usage names and ENABLED values when constructing
     // subscriptions; this check keeps alias expansion inside the catalog scope
     for (alias, value) in recovery.usageAliases {
       guard
         let usages = paredResolveUsageAlias(alias, value),
         !usages.isEmpty,
-        Set(usages.keys).isSubset(
-          of: feature.downloadAssetSets)
+        allowed.isSuperset(of: usages.keys)
       else { throw CLIError("Download alias no longer matches the catalog for \(name)") }
     }
   }
