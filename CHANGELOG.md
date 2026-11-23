@@ -9,6 +9,9 @@
 
 ### Fixed
 
+- Core AI Models and Image Playground download requests validate again on macOS
+  27.2.1. Pared ignores empty alias entries and uses Apple's Diffusion mapping
+  for Image Playground
 - Generated profiles no longer redirect model downloads that macOS updates can
   also use. Replace older installed Pared profiles before updating macOS
   ([#8](https://redirect.github.com/4evy/pared/issues/8))

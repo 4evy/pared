@@ -320,14 +320,14 @@ func bridgeCopyStringValues(_ values: AnyObject?) -> NSDictionary? {
   return NSDictionary(dictionary: values, copyItems: true)
 }
 
-func bridgeCopyAssetSetUsages(_ sets: AnyObject?) -> NSDictionary? {
+func bridgeCopyAssetSetUsages(_ sets: AnyObject?, omittingEmptySets: Bool = false) -> NSDictionary? {
   guard let sets = sets as? NSDictionary else { return nil }
   let result = NSMutableDictionary(capacity: sets.count)
   // Native initializers retain nested dictionaries, so freeze every level
   for (key, value) in sets {
-    guard let key = key as? NSString, let usages = bridgeCopyStringValues(value as AnyObject) else {
-      return nil
-    }
+    guard let key = key as? NSString, let values = value as? NSDictionary else { return nil }
+    if omittingEmptySets, values.count == 0 { continue }
+    guard let usages = bridgeCopyStringValues(values) else { return nil }
     result[key.copy() as! NSString] = usages
   }
   return result.copy() as? NSDictionary

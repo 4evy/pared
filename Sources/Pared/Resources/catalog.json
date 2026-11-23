@@ -118,7 +118,7 @@
         "subscriber": "org.pared",
         "name": "imagePlayground",
         "usageAliases": {
-          "VisualGeneration.GenerativePlayground": "language_en"
+          "com.apple.Settings.AppleIntelligence.Diffusion": "language_en"
         },
         "additionalAssetSets": ["com.apple.MobileAsset.UAF.FM.Overrides"],
         "minimumOSMajorVersion": 27

@@ -40,7 +40,8 @@ func bridgeResolveAliasWithManager(
   guard bridgeNonemptyString(alias), let alias = alias as? NSString,
     let value = value as? NSString, let manager
   else { return nil }
-  return bridgeCopyAssetSetUsages(aliasValue(manager, alias, value))
+  // An empty expansion entry contributes no demand for that asset set
+  return bridgeCopyAssetSetUsages(aliasValue(manager, alias, value), omittingEmptySets: true)
 }
 
 @_cdecl("ParedAssetTypeForSet")
