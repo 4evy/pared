@@ -31,23 +31,6 @@ let
       }) feature.preferences
     ) managedFeatures
   );
-  blockedAssetSets = builtins.filter (
-    assetSet:
-    let
-      consumers = lib.attrsets.filterAttrs (
-        _: feature: builtins.elem assetSet feature.assetSets
-      ) catalog.features;
-    in
-    consumers != { } && builtins.all (name: state name == false) (builtins.attrNames consumers)
-  ) (builtins.attrNames catalog.assetTypes);
-  downloadPreferences = lib.attrsets.optionalAttrs (blockedAssetSets != [ ]) {
-    ${catalog.downloadBlocking.domain} = builtins.listToAttrs (
-      map (assetSet: {
-        name = catalog.downloadBlocking.keyPrefix + catalog.assetTypes.${assetSet};
-        value = catalog.downloadBlocking.url;
-      }) blockedAssetSets
-    );
-  };
   restrictions = lib.attrsets.concatMapAttrs (
     name: feature: lib.attrsets.genAttrs feature.restrictions (_: state name)
   ) managed;
@@ -75,7 +58,6 @@ assert lib.asserts.assertMsg (builtins.all validState (
 )) "pared: feature states must be true, false, or null";
 {
   inherit userPreferences restrictions;
-  managedPreferences = lib.attrsets.recursiveUpdate userPreferences downloadPreferences;
   document = {
     schemaVersion = 1;
     defaultState = encodeState defaultState;

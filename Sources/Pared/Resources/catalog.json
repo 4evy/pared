@@ -445,16 +445,10 @@
     "com.apple.spatialphotosrelive": "8FE8D8DB-D187-5A4E-B442-71D92A65DF0F",
     "group.com.apple.usernoted": "63D64C75-B64D-5D1B-8106-EC8B7849333D",
     "com.apple.MobileSMS": "29B0BAC7-8386-5EC3-932E-E325D744380C",
-    "group.com.apple.mail": "EA0E23B7-D189-5689-B2A7-ABDFFDABC039",
-    "com.apple.MobileAsset": "AF7975DA-1BCF-4CBF-ACAB-72C42F42BA49"
+    "group.com.apple.mail": "EA0E23B7-D189-5689-B2A7-ABDFFDABC039"
   },
   "recoveryAssetTypes": {
     "com.apple.MobileAsset.UAF.FM.Overrides": "com.apple.MobileAsset.UAF.FM.Overrides",
     "com.apple.MobileAsset.UAF.Shortcuts.Generator": "com.apple.MobileAsset.UAF.Shortcuts.Generator"
-  },
-  "downloadBlocking": {
-    "domain": "com.apple.MobileAsset",
-    "keyPrefix": "DownloadServerBaseURLOverride-",
-    "url": "https://127.0.0.1:9/pared-blocked/"
   }
 }

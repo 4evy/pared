@@ -17,6 +17,6 @@ func openProfileInstallation(policy: Policy, catalog: Catalog) throws {
   }
   report("Opened profile installation: \(url.path)")
   report(
-    "Complete review and installation in System Settings. Opening the file does not install it.")
+    "Install the new profile in System Settings. Replace any older Pared profile before updating macOS.")
   report("Then run pared profile status to check whether the device profile is installed.")
 }

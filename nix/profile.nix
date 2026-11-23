@@ -3,7 +3,7 @@
   policy ? import ./policy.nix { inherit lib; },
 }:
 let
-  inherit (policy) restrictions managedPreferences;
+  inherit (policy) restrictions userPreferences;
   preferenceUUIDs = (lib.trivial.importJSON ../Sources/Pared/Resources/catalog.json).preferenceUUIDs;
 in
 lib.generators.toPlist { escape = true; } {
@@ -34,5 +34,5 @@ lib.generators.toPlist { escape = true; } {
     PayloadUUID = preferenceUUIDs.${domain};
     PayloadDisplayName = "AI preferences: ${domain}";
     PayloadContent.${domain}.Forced = [ { mcx_preference_settings = preferences; } ];
-  }) managedPreferences;
+  }) userPreferences;
 }

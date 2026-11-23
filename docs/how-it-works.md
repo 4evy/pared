@@ -1,12 +1,12 @@
 # How Pared manages settings and models
 
-Pared applies feature settings, blocks unwanted downloads, and removes models
-through Apple’s asset service. These actions happen separately:
+Pared applies feature settings and removes models through Apple’s asset service.
+These actions happen separately:
 
 1. **Save choices.** Saving your policy applies supported local preferences and
    generates a profile
-2. **Install the profile.** macOS applies its supported managed controls and
-   download blocks. Replace it whenever you change choices
+2. **Install the profile.** macOS applies its supported managed controls.
+   Replace it whenever you change choices
 3. **Remove models.** Cleanup requests removal and checks model folders
    afterward
 
@@ -16,35 +16,41 @@ and model groups. Apple manages each model group as an *asset set*.
 
 ## Select model groups
 
-An asset set is eligible for removal and download blocking only when every known
-consumer is disabled. For example, keeping Siri enabled or unmanaged keeps its
-shared foundation models. The catalog protects known consumers; Apple may have
-dependencies it does not cover.
+An asset set is eligible for removal only when every known consumer is disabled.
+For example, keeping Siri enabled or unmanaged keeps its shared foundation
+models. The catalog protects known consumers. Apple may have dependencies it
+does not cover.
 
 ## Profile compatibility
 
-The profile combines legacy restrictions, forced preferences, and download
-blocks. Apple [deprecated the Apple Intelligence and Siri restriction
-keys](https://github.com/apple/device-management/blob/release/mdm/profiles/com.apple.applicationaccess.yaml)
+The profile combines legacy restrictions and forced preferences. Apple
+[deprecated the Apple Intelligence and Siri restriction keys](https://github.com/apple/device-management/blob/release/mdm/profiles/com.apple.applicationaccess.yaml)
 in macOS 26.4. Installing Pared’s profile does not establish that macOS honors
-those keys. Forced preferences and download blocks work independently of them.
+those keys. Forced preferences work independently of them.
 
 Pared exports replacement Intelligence, External Intelligence, and Siri
-declarations for [supervised mobile device management (MDM)
-enrollment](https://developer.apple.com/documentation/devicemanagement/intelligencesettings);
+declarations for
+[supervised mobile device management (MDM) enrollment](https://developer.apple.com/documentation/devicemanagement/intelligencesettings);
 System Settings cannot install them.
 
-## Block future downloads
+## Replace older profiles before updating macOS
 
-For each selected asset set, the profile redirects its asset type’s downloads to
-the loopback URL `https://127.0.0.1:9/pared-blocked/`. It sets
+Older Pared profiles redirected model downloads to a loopback address using
 `DownloadServerBaseURLOverride-<assetType>` in `com.apple.MobileAsset`.
+The override is keyed by asset type, not by what requested the download.
+Software Update can stage assets of those same types. The current profile
+omits the redirects and keeps its feature controls.
 
-The download daemon, `mobileassetd`, reads these values from
-`/Library/Managed Preferences/com.apple.MobileAsset.plist`. Its sandbox denies
-ordinary system `defaults`, which is why blocking needs a managed profile.
-Catalog checks and local retries can continue while payload downloads are
-blocked.
+Use `pared profile open` and install the replacement in System Settings →
+General → Device Management. If Software Update is already stuck, remove the
+old profile and retry the update. Rebuilding a Nix configuration or updating
+Pared does not replace an installed profile.
+
+Pared does not install a download block. The private MobileAsset scheduler
+allowlist affects unrelated asset types and does not cover every download
+path. Feature restrictions control use, not which assets macOS can stage.
+If models return after an update, run `pared models cleanup --dry-run` to
+review which sets you can remove again.
 
 ## Connect to Apple’s asset service
 
@@ -82,9 +88,9 @@ leaves the request’s outcome unknown.
 
 ## Download models again
 
-Enable the feature and replace the profile before requesting its models. The
-replacement omits blocks for asset sets with enabled or unmanaged consumers;
-changing local preferences alone leaves the installed blocks in place.
+Enable the feature and install the replacement profile before requesting its
+models. Changing local preferences alone does not lift installed restrictions
+or download redirects from an older profile.
 
 Pared resolves usage aliases, checks usage names against Apple’s configuration,
 and builds `UAFAssetSetSubscription` objects with

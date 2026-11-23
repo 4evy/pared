@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Generated profiles no longer redirect model downloads that macOS updates can
+  also use. Replace older installed Pared profiles before updating macOS
+  ([#8](https://redirect.github.com/4evy/pared/issues/8))
 - The Nix package builds with Swift 6.2.4 again; the GUI command runner no
   longer hits the type checker's time limit when assembling CLI arguments
 - The Nix package builds with Swift 6.4 and the macOS 27 SDK without Apple's

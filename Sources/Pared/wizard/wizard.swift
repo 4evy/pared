@@ -533,7 +533,7 @@ private struct Wizard {
       "\(.accent("Removal is optional"))",
       lines: [
         "Only models whose known features are all off are listed.",
-        "Apply your settings first to block future downloads.",
+        "macOS can download removed models again, including during updates.",
         "Removal also cancels Pared download requests.",
       ])
     guard

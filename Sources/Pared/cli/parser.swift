@@ -11,8 +11,8 @@ struct ParedCLI: AsyncParsableCommand {
       Use --dry-run with supported commands to preview changes without writing.
 
       enable/disable save settings; they do not remove or download models.
-      Install the generated profile in System Settings to enforce managed controls
-      and block downloads. Replace it after changing policy, including after reset.
+      Install the generated profile in System Settings to apply supported managed controls.
+      Replace it after changing policy, including after reset.
       reset removes local preferences; it does not restore their previous values.
       Siri voice activation is separate: enable siriVoiceTrigger if you want it.
       Siri services can remain running when Siri is disabled.
@@ -143,7 +143,8 @@ private struct ProfileCommand: ParsableCommand {
       It exits 0 when installed and 1 when absent; query failures are errors.
       Apple deprecated the legacy AI restrictions in macOS 26.4.
       Their MDM replacements require supervised enrollment. Local profiles still
-      supply forced preferences and model download blocks.
+      supply forced preferences. Replace older Pared profiles that redirect model
+      downloads, as those redirects can also affect macOS updates.
       """,
     subcommands: [ProfileShowCommand.self, ProfileOpenCommand.self, ProfileStatusCommand.self])
 }

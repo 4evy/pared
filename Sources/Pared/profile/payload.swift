@@ -1,21 +1,12 @@
 import Foundation
 
-func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: ManagementValue]] {
+private func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: ManagementValue]] {
   let assignments = policy.preferenceAssignments(in: catalog, for: catalog.features.keys)
-  var values = Dictionary(grouping: assignments, by: { $0.preference.domain }).mapValues {
+  return Dictionary(grouping: assignments, by: { $0.preference.domain }).mapValues {
     Dictionary(
       $0.map { ($0.preference.key, ManagementValue.boolean($0.value)) },
       uniquingKeysWith: { _, requested in requested })
   }
-  // mobileassetd can read managed preferences, but its sandbox denies ordinary
-  // defaults. Block the same sets selected for cleanup so an enabled or
-  // unmanaged consumer keeps access to its shared models
-  let block = catalog.downloadBlocking
-  for assetSet in policy.cleanupTargets(catalog) {
-    let key = block.keyPrefix + catalog.assetTypes[assetSet]!
-    values[block.domain, default: [:]][key] = .string(block.url)
-  }
-  return values
 }
 
 enum ProfileIdentity {

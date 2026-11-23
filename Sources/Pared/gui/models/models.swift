@@ -251,7 +251,7 @@ struct CleanupReview: View {
         .font(.caption).foregroundStyle(.secondary)
       if store.profileStatus?.installed != true || store.profileNeedsReplacement {
         Label(
-          "Install the updated profile to help prevent these models from downloading again.",
+          "Install the updated profile to apply supported feature controls. macOS can still download models again.",
           systemImage: "doc.badge.gearshape"
         )
         .font(.callout).foregroundStyle(.secondary)

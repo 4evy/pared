@@ -57,7 +57,7 @@ shared models needed by features in its catalog that you leave on or unmanaged.
 1. **Choose your features.** Set each one to On, Off, or App Default. A new
    policy starts with everything off; review your choices before saving
 2. **Finish setup.** Install Pared’s configuration profile in System Settings.
-   It applies supported controls and blocks unwanted model downloads
+   It applies supported feature controls
 3. **Review model removal.** Pared shows which models can go before you
    confirm. Saving feature settings and removing models are separate actions
 
@@ -88,7 +88,7 @@ guide](docs/cli.md) for setup and commands.
 Use the nix-darwin or Home Manager module to manage your choices. Both remove
 eligible models during activation by default; set
 `programs.pared.cleanupOnActivation = false;` to opt out. Install the generated
-profile in System Settings to block future downloads.
+profile in System Settings to apply supported feature controls.
 
 See the [Nix setup guide](https://4evy.github.io/pared/docs/#quick-start) and
 [option reference](https://4evy.github.io/pared/docs/#sec-options).

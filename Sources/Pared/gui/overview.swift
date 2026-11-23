@@ -169,7 +169,7 @@ struct OverviewPane: View {
     GUICard(padding: 16, subtle: true) {
       Label("Finish Setup", systemImage: "gearshape")
         .font(.headline).accessibilityAddTraits(.isHeader)
-      Text("macOS needs a profile to apply some controls and block unwanted downloads.")
+      Text("macOS needs a profile to apply some feature controls.")
         .font(.callout).foregroundStyle(.secondary)
       HStack {
         GUIActionButton(store: store, action: .installProfile)
@@ -196,7 +196,7 @@ struct OverviewPane: View {
       OverviewActionRow(
         title: "Download the Models",
         description:
-          "Return here after installing. Pared checks for blocked downloads before sending the request.",
+          "Return here after installing. An older Pared profile can still block downloads.",
         symbol: "2.circle"
       ) {
         GUIActionButton(

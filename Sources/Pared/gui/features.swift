@@ -222,7 +222,7 @@ private struct FeatureDetail: View {
           .font(.callout.weight(.medium))
           Text(
             requiresDeviceManagement
-              ? "Pared’s profile controls model downloads. Restricting the feature itself requires supervised device management."
+              ? "Restricting this feature requires supervised device management."
               : "Save your choice, then install the updated profile in System Settings. Installed status does not confirm these controls are enforced."
           )
           .font(.callout).foregroundStyle(.secondary)

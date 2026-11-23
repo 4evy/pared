@@ -12,7 +12,7 @@ in
 ''
   (
     set -e
-    echo ${lib.escapeShellArg "Install ${profilePath} to block model downloads."}
+    echo ${lib.escapeShellArg "Install ${profilePath} to apply supported managed controls."}
     paredState=${lib.escapeShellArg stateDirectory}
     ${coreutils}/install -d -m 0700 "$paredState"
     if ! ${pkgs.diffutils}/bin/cmp -s ${policyFile} "$paredState/cleaned-policy.json"; then

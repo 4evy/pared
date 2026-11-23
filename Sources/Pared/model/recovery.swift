@@ -30,22 +30,21 @@ func recoverModels(
   else { throw CLIError("Cannot load UnifiedAssetFramework") }
   let targets = catalog.assetSets(for: names, at: \.downloadAssetSets)
   let assets = try catalog.modelAssets(targets, includingDownloadDependencies: true)
-  // The installed profile can still block downloads after the CLI policy
-  // changes. Read the daemon's managed preferences and reject requests that
-  // Pared's download override would redirect to loopback
-  let block = catalog.downloadBlocking
-  let managedURL = URL(fileURLWithPath: "/Library/Managed Preferences/\(block.domain).plist")
+  // An older installed Pared profile may still redirect shared MobileAsset
+  // downloads even though newly generated profiles omit those overrides
+  let managedURL = URL(fileURLWithPath: "/Library/Managed Preferences/com.apple.MobileAsset.plist")
   if FileManager.default.fileExists(atPath: managedURL.path) {
     guard
       let managed = try PropertyListSerialization.propertyList(
         from: Data(contentsOf: managedURL), format: nil) as? [String: Any]
     else { throw CLIError("Installed download policy has an unknown format; no request sent") }
     let blocked = assets.contains { asset in
-      managed[block.keyPrefix + asset.assetType] as? String == block.url
+      managed["DownloadServerBaseURLOverride-\(asset.assetType)"] as? String
+        == "https://127.0.0.1:9/pared-blocked/"
     }
     guard !blocked else {
       throw CLIError(
-        "Model downloads are still blocked by the installed policy. Install the updated profile before downloading."
+        "An older Pared profile still blocks model downloads. Replace or remove it before downloading."
       )
     }
   }

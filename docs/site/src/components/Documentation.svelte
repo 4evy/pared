@@ -119,9 +119,9 @@ const example = `{
       </ul>
       <p class="my-3">
         Save, open <strong>Setup</strong>, and install the profile in System
-        Settings. It applies supported controls and blocks unwanted downloads.
-        Replace it after every change, including App Default; its settings stay
-        in effect until replaced or removed.
+        Settings. It applies supported feature controls. Replace it after every
+        change, including App Default. Its settings stay in effect until
+        replaced or removed.
       </p>
       <p class="my-3">
         Some restrictions require supervised mobile device management (MDM).
@@ -131,6 +131,11 @@ const example = `{
           href="https://github.com/4evy/pared/blob/master/docs/how-it-works.md#profile-compatibility"
           >profile compatibility notes</a
         >.
+      </p>
+      <p class="my-3">
+        Replace older Pared profiles before updating macOS. The old download
+        redirects could interfere with assets Software Update stages. If an
+        update is stuck, remove the old profile and retry.
       </p>
     </section>
     <section
@@ -158,8 +163,8 @@ const example = `{
         already have happened.
       </p>
       <p class="my-3">
-        Pared checks folders, not recovered disk space; macOS may update its
-        storage total later. Keep the profile installed to block new downloads.
+        Pared checks folders, not recovered disk space. macOS may update its
+        storage total later and can download removed models again.
       </p>
       <h3 class="guide-subheading">To use a feature again</h3>
       <p class="my-3">
@@ -250,8 +255,7 @@ pared models cleanup --dry-run</code></pre>
         Both modules remove eligible models during activation by default.
         Activation does not wait for profile installation. Set
         <code>programs.pared.cleanupOnActivation = false;</code>
-        to opt out. Keep the matching profile installed to block future
-        downloads.
+        to opt out.
       </p>
       <p class="my-3">
         Activation skips cleanup when the policy matches the last successful

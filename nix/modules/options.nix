@@ -16,8 +16,7 @@
         The cleanup record is stored in
         /var/db/pared/cleaned-policy.json for nix-darwin, or
         $XDG_STATE_HOME/pared/cleaned-policy.json for Home Manager.
-        Failures retry on the next activation. Install the generated
-        configuration profile to block future downloads.
+        Failures retry on the next activation. macOS can download models again.
       '';
     };
     package = lib.options.mkOption {
@@ -41,8 +40,8 @@
         Override defaultState for individual features. true enables a feature,
         false disables it, and null leaves it unmanaged. Changing a value to
         null does not remove preferences written earlier. Rebuild and install
-        the replacement profile to update managed restrictions and download
-        blocks; rebuilding alone does not replace an installed profile.
+        the replacement profile to update managed controls. Rebuilding alone
+        does not replace an installed profile.
       '';
       type = lib.types.submodule {
         options = lib.attrsets.mapAttrs (

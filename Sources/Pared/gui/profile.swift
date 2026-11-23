@@ -23,7 +23,7 @@ struct ProfilePane: View {
       PageHeading(
         title: "Finish Setup",
         description:
-          "A profile enforces supported feature controls and blocks downloads for models your policy disables.",
+          "A profile applies supported feature controls without redirecting model downloads.",
         symbol: "doc.badge.gearshape")
       SettingsGroup(title: "Installation") {
         if let status = store.profileStatus {
@@ -34,7 +34,7 @@ struct ProfilePane: View {
           .font(.headline)
           if status.installed {
             Text(
-              "macOS reports a Pared profile installed. Install it again after changing your choices so it stays up to date."
+              "Replace any older Pared profile before updating macOS. Older profiles can interfere with downloads used by Software Update."
             )
             .font(.callout).foregroundStyle(.secondary)
           }
@@ -93,7 +93,7 @@ struct ProfilePane: View {
             "Installed metadata does not confirm the contents match your saved choices or prove runtime enforcement."
           )
           Text(
-            "Apple deprecated the legacy AI restrictions in macOS 26.4. Their replacement declarations require supervised MDM enrollment. Pared generates these alongside your settings; they are not an installable profile. Forced preferences and model download blocks are separate from those restrictions."
+            "Apple deprecated the legacy AI restrictions in macOS 26.4. Their replacement declarations require supervised MDM enrollment. Pared generates these alongside your settings. System Settings can install the profile with forced preferences, but not the declarations."
           )
         }
         .font(.callout).foregroundStyle(.secondary).padding(.top, 8)

@@ -69,7 +69,7 @@ func resetModels(_ targets: [String], catalog: Catalog) -> ExitStatus {
     } else if let error {
       if removalHasLocks(error) {
         report(
-          "macOS reported locks during removal. Its reset routine can retain that error after attempting forced removal, so check model folders before assuming the locks remain. Keep the matching profile installed to block downloads."
+          "macOS reported locks during removal. Its reset routine can retain that error after attempting forced removal, so check model folders before assuming the locks remain."
         )
       }
       reply.finish(

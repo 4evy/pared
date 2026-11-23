@@ -98,12 +98,6 @@ struct Feature: Decodable {
   var downloadAssetSets: [String] { assetSets + (recovery?.additionalAssetSets ?? []) }
 }
 
-struct DownloadBlocking: Decodable {
-  let domain: String
-  let keyPrefix: String
-  let url: String
-}
-
 struct Catalog: Decodable {
   static let supportedSchemaVersion = 1
   let schemaVersion: Int
@@ -113,7 +107,6 @@ struct Catalog: Decodable {
   // These dependencies may be downloaded but are excluded from cleanup
   let recoveryAssetTypes: [String: String]?
   let preferenceUUIDs: [String: String]
-  let downloadBlocking: DownloadBlocking
 
   var downloadAssetTypes: [String: String] {
     assetTypes.merging(recoveryAssetTypes ?? [:]) { existing, _ in existing }
@@ -175,9 +168,6 @@ struct Catalog: Decodable {
     }
     guard Set(catalog.assetTypes.keys).isDisjoint(with: (catalog.recoveryAssetTypes ?? [:]).keys)
     else { throw CLIError("Cleanup and download-only asset types must be disjoint") }
-    guard catalog.preferenceUUIDs[catalog.downloadBlocking.domain] != nil else {
-      throw CLIError("Missing download blocking profile identity")
-    }
     for (name, feature) in catalog.features {
       guard Set(feature.preferences.map(\.id)).count == feature.preferences.count else {
         throw CLIError("Duplicate preference mappings for \(name)")

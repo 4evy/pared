@@ -53,7 +53,7 @@ const steps = [
   {
     number: '02',
     title: 'Finish setup',
-    text: 'Approve Pared’s configuration profile in System Settings to apply supported controls and block unwanted model downloads.',
+    text: 'Approve Pared’s configuration profile in System Settings to apply supported feature controls.',
   },
   {
     number: '03',
@@ -350,8 +350,8 @@ const steps = [
           <p>
             Some feature restrictions require a Mac enrolled in device
             management. On a personal Mac, Pared applies the local settings and
-            profile controls macOS supports. Its profile also blocks downloads
-            for model groups whose known features are all off.
+            profile controls macOS supports. macOS can still download models
+            again, including during updates.
           </p>
         </details>
       </div>
