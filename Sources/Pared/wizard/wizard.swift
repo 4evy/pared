@@ -414,19 +414,22 @@ private struct Wizard {
   private func reviewSettings(_ settings: Policy, original: Policy?, touched: Set<String>) {
     // Each page fits the terminal; changed entries come first and keep their
     // text marker when color is disabled
-    let names =
-      featureNames.filter { touched.contains($0) }
-      + featureNames.filter { !touched.contains($0) }
+    let ordered = featureNames
+    var names: [String] = []
+    names.reserveCapacity(ordered.count)
+    names.append(contentsOf: ordered.lazy.filter(touched.contains))
+    names.append(contentsOf: ordered.lazy.filter { !touched.contains($0) })
+    guard !names.isEmpty else { return }
     let rows = Terminal(signalBehavior: .none).size()?.rows ?? 24
     let count = max(1, min(5, (rows - 12) / 3))
-    let pages = stride(from: 0, to: names.count, by: count).map {
-      Array(names[$0..<min($0 + count, names.count)])
-    }
+    let pageCount = (names.count - 1) / count + 1
     var page = 0
     let renderer = WizardRenderer()
-    while !pages.isEmpty {
+    while true {
+      let start = page * count
+      let end = min(start + count, names.count)
       var lines: [TerminalText] = []
-      for name in pages[page] {
+      for name in names[start..<end] {
         let feature = catalog.features[name]!
         let changed = original.map { $0.state(name) != settings.state(name) } ?? false
         let label = featureName(name)
@@ -442,20 +445,16 @@ private struct Wizard {
               ? "    Local override: remove" : "    Local setting: apply")
         }
       }
-      var options: [WizardPageAction] = []
-      if page < pages.count - 1 {
-        options.append(.next)
-      } else {
-        options.append(.done)
-      }
+      let hasNextPage = page + 1 < pageCount
+      var options: [WizardPageAction] = [hasNextPage ? .next : .done]
       if page > 0 { options.append(.previous) }
-      if page < pages.count - 1 { options.append(.done) }
+      if hasNextPage { options.append(.done) }
       let content = lines.map {
         $0.formatted(theme: WizardStyle.theme, terminal: Terminal(signalBehavior: .none))
       }.joined(separator: "\n")
       let action = ui.singleChoicePrompt(
         title:
-          "\(original == nil ? (hasSavedPolicy ? "Saved settings" : "Default settings") : "Review changes") · \(page + 1)/\(pages.count)",
+          "\(original == nil ? (hasSavedPolicy ? "Saved settings" : "Default settings") : "Review changes") · \(page + 1)/\(pageCount)",
         question: original == nil ? "Your chosen settings" : "* marks a changed setting",
         options: options, description: TerminalText(stringLiteral: String(content.dropFirst(2))),
         autoselectSingleChoice: false, renderer: renderer)

@@ -32,7 +32,7 @@ func wizardSelectFeatures(options: [(id: String, label: String)]) -> [String] {
     let overhead = WizardStyle.wrap((header + [footer]).joined(separator: "\n"), width: width).count
     // Budget wrapped option rows as well as the panel and trailing newline
     let optionRows = max(
-      1, filtered.map { WizardStyle.wrap("  ❯ ◉ " + $0.label, width: width).count }.max() ?? 1)
+      1, filtered.lazy.map { WizardStyle.wrap("  ❯ ◉ " + $0.label, width: width).count }.max() ?? 1)
     let count = max(1, ((terminal.size()?.rows ?? 21) - overhead) / optionRows)
     let start = max(0, min(current - count / 2, filtered.count - count))
     let visible = filtered.dropFirst(start).prefix(count)
@@ -92,5 +92,5 @@ func wizardSelectFeatures(options: [(id: String, label: String)]) -> [String] {
     }
   }
   renderer.render("✔ Choose features: \(selected.count) selected", standardPipeline: output)
-  return options.filter { selected.contains($0.id) }.map(\.id)
+  return options.lazy.filter { selected.contains($0.id) }.map(\.id)
 }
