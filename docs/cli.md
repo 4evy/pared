@@ -270,13 +270,24 @@ pared enable siri siriVoiceTrigger
 pared profile open
 ```
 
-Install the updated profile, then check Siri in System Settings -\> Apple
-Intelligence & Siri. `siriVoiceTrigger` controls voice activation separately;
-omit it if you only want keyboard activation.
+Install the updated profile, then check Siri in System Settings → Siri.
+`siriVoiceTrigger` controls voice activation separately. Omit it if you only
+want keyboard activation.
 
 Keeping Siri enabled or unmanaged keeps its shared foundation models; basic Siri
 is not guaranteed to work if you delete them. Siri-related services also serve
 other macOS features, so a running process alone does not show that Siri is on.
+
+### Choose your Siri version
+
+On macOS 27 or later, `pared disable siriAI` selects Siri Classic for your
+account. `pared enable siriAI` allows Siri AI where available but does not
+complete Apple's beta setup. `pared reset siriAI` removes the local override.
+These commands do not turn Siri or Apple Intelligence on or off.
+
+Leave Apple Intelligence on and retain **Core AI Models** if you use features
+such as Writing Tools summaries. Siri AI's own screen-reading and summary
+commands aren't available in Siri Classic.
 
 ## Let an app use its defaults
 

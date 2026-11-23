@@ -7,7 +7,7 @@
         "title": "Siri",
         "symbol": "waveform",
         "group": "Siri & Writing",
-        "note": "Voice Activation is a separate choice. Keeping Siri on retains its shared models. macOS may keep Siri background services running even when Siri is off."
+        "note": "Siri AI (Beta) and voice activation are separate choices. Keeping Siri on retains its shared models. macOS may keep Siri background services running even when Siri is off."
       },
       "preferences": [
         {
@@ -25,6 +25,27 @@
       ],
       "restrictions": ["allowAssistant"],
       "declarations": ["siri.Enabled"],
+      "assetSets": ["com.apple.modelcatalog"]
+    },
+    "siriAI": {
+      "description": "Choose a Siri version on macOS 27 or later",
+      "display": {
+        "title": "Siri AI (Beta)",
+        "symbol": "waveform",
+        "group": "Siri & Writing",
+        "note": "Off selects Siri Classic. On allows Siri AI where available. This choice does not turn Siri or Apple Intelligence on or off."
+      },
+      "preferences": [
+        {
+          "domain": "com.apple.assistant.backedup",
+          "key": "Enable Offline Mode For Apple Intelligence",
+          "title": "Siri AI (Beta)",
+          "inverted": true,
+          "darwinNotification": "com.apple.siri.appleIntelligenceFallback.didChange"
+        }
+      ],
+      "restrictions": [],
+      "declarations": [],
       "assetSets": ["com.apple.modelcatalog"]
     },
     "siriVoiceTrigger": {

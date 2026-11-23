@@ -87,5 +87,10 @@ func applyPreferences(policy: Policy, catalog: Catalog, names: [String], reset: 
       throw CLIError(
         "Could not synchronize \(preference.domain); earlier writes may have succeeded")
     }
+    if let notification = preference.darwinNotification {
+      CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(notification as CFString),
+        nil, nil, false)
+    }
   }
 }

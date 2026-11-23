@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Choose between Siri AI (Beta) and Siri Classic on macOS 27 without changing
+  the Siri or Apple Intelligence settings
+
 ### Changed
 
 - Building the CLI and app from source now requires Swift 6.4, matching the Nix

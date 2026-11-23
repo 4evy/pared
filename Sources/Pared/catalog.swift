@@ -10,6 +10,7 @@ struct Preference: Decodable, Identifiable {
   let key: String
   let inverted: Bool
   let title: String?
+  let darwinNotification: String?
 
   var id: ID { ID(domain: domain, key: key) }
 
