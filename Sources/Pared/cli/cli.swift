@@ -13,9 +13,12 @@ func executeCommand(
 ) throws -> ExitStatus {
   let catalog = try Catalog.load()
   let url = policyURL ?? Policy.defaultURL
-  let names = try catalog.selectedFeatureNames(requestedNames)
+  let state = command.desiredState
+  let names = try catalog.selectedFeatureNames(
+    requestedNames, defaultingToAll: state == nil && command != .download)
   if command == .features {
-    for (name, feature) in catalog.features.sorted(by: { $0.key < $1.key }) {
+    for name in catalog.featureNames {
+      let feature = catalog.features[name]!
       let controls = catalog.controls(for: feature).joined(separator: ", ")
       print("\(name): \(feature.description) [\(controls)]")
     }
@@ -23,17 +26,16 @@ func executeCommand(
   }
   if command == .check { return checkService(catalog: catalog) }
   var policy = try Policy.load(url, explicit: policyURL != nil, catalog: catalog)
-  if let state = command.desiredState {
+  if let state {
     guard !names.isEmpty else {
       throw CLIError("\(command.rawValue) requires feature names or 'all'")
     }
     policy.set(state, for: names)
   }
-  let selected = names.isEmpty ? catalog.featureNames : names
   switch command {
   case .status:
     let status = Dictionary(
-      uniqueKeysWithValues: selected.map { name in
+      uniqueKeysWithValues: names.lazy.map { name in
         let feature = catalog.features[name]!
         return (
           name,
@@ -53,16 +55,15 @@ func executeCommand(
   case .declarations:
     FileHandle.standardOutput.write(try declarationData(policy: policy, catalog: catalog))
   case .download:
-    return try recoverModels(
-      names.isEmpty ? [] : selected, policy: policy, catalog: catalog, dryRun: dryRun)
+    return try recoverModels(names, policy: policy, catalog: catalog, dryRun: dryRun)
   case .models:
-    let targets = catalog.assetSets(for: selected)
+    let targets = catalog.assetSets(for: names)
     let statuses = try modelStatus(targets, catalog: catalog)
     FileHandle.standardOutput.write(try jsonData(statuses))
     return statuses.contains(where: \.hasErrors)
       ? .failure : .success
   case .cleanup:
-    let requested = Set(catalog.assetSets(for: selected))
+    let requested = Set(catalog.assetSets(for: names))
     var targets = policy.cleanupTargets(catalog).filter { requested.contains($0) }
     if let reviewedAssetSets {
       let selection = Set(reviewedAssetSets)
@@ -91,7 +92,7 @@ func executeCommand(
       return .success
     }
     try persistPolicyChanges(
-      policy: policy, url: url, catalog: catalog, names: selected, reset: command == .reset)
+      policy: policy, url: url, catalog: catalog, names: names, reset: command == .reset)
   case .features, .check:
     preconditionFailure("Handled before policy loading")
   }

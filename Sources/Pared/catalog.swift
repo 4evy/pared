@@ -49,15 +49,15 @@ struct DeclarationPath: Decodable {
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     let path = try container.decode(String.self)
-    let parts = path.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
-    guard parts.count > 1, let group = DeclarationGroup(rawValue: parts[0]),
+    let parts = path.split(separator: ".", omittingEmptySubsequences: false)
+    guard parts.count > 1, let group = DeclarationGroup(rawValue: String(parts[0])),
       parts.allSatisfy({ !$0.isEmpty })
     else {
       throw DecodingError.dataCorruptedError(
         in: container, debugDescription: "Invalid declaration path: \(path)")
     }
     self.group = group
-    components = Array(parts.dropFirst())
+    components = parts.dropFirst().map(String.init)
   }
 }
 
@@ -86,21 +86,24 @@ struct Feature: Decodable {
   var downloadAssetSets: [String] { assetSets + (recovery?.additionalAssetSets ?? []) }
 }
 
-struct Catalog: Decodable {
-  static let supportedSchemaVersion = 1
-  let schemaVersion: Int
-  let features: [String: Feature]
-  let assetTypes: [String: String]
-  let modelDisplay: [String: ModelDisplay]?
-  // These dependencies may be downloaded but are excluded from cleanup
-  let recoveryAssetTypes: [String: String]?
-  let preferenceUUIDs: [String: String]
-
-  var downloadAssetTypes: [String: String] {
-    assetTypes.merging(recoveryAssetTypes ?? [:]) { existing, _ in existing }
+struct Catalog {
+  private struct Manifest: Decodable {
+    let schemaVersion: Int
+    let features: [String: Feature]
+    let assetTypes: [String: String]
+    let modelDisplay: [String: ModelDisplay]?
+    // These dependencies may be downloaded but are excluded from cleanup
+    let recoveryAssetTypes: [String: String]?
+    let preferenceUUIDs: [String: String]
   }
 
-  var featureNames: [String] { features.keys.sorted() }
+  private let manifest: Manifest
+  private let consumersByAssetSet: [String: [String]]
+  let featureNames: [String]
+
+  var features: [String: Feature] { manifest.features }
+  var assetTypes: [String: String] { manifest.assetTypes }
+  var preferenceUUIDs: [String: String] { manifest.preferenceUUIDs }
 
   // Domains with a payload UUID can also be exported as forced preferences
   func hasProfileControls(_ feature: Feature) -> Bool {
@@ -120,37 +123,50 @@ struct Catalog: Decodable {
 
   var presentations: [FeaturePresentation] { featureNames.map(presentation) }
 
+  func modelAsset(_ name: String, includingDownloadDependencies: Bool = false)
+    throws(CLIError) -> ModelAssetSet
+  {
+    guard
+      let assetType = assetTypes[name]
+        ?? (includingDownloadDependencies ? manifest.recoveryAssetTypes?[name] : nil)
+    else { throw CLIError("Missing asset type in the catalog for \(name); no request sent") }
+    return ModelAssetSet(name: name, assetType: assetType)
+  }
+
   func modelAssets(_ names: [String], includingDownloadDependencies: Bool = false)
     throws(CLIError) -> [ModelAssetSet]
   {
-    let types = includingDownloadDependencies ? downloadAssetTypes : assetTypes
-    return try names.map { name throws(CLIError) -> ModelAssetSet in
-      guard let assetType = types[name] else {
-        throw CLIError("Missing asset type in the catalog for \(name); no request sent")
-      }
-      return ModelAssetSet(name: name, assetType: assetType)
+    try names.map { name throws(CLIError) in
+      try modelAsset(name, includingDownloadDependencies: includingDownloadDependencies)
     }
   }
 
-  func selectedFeatureNames(_ requested: [String]) throws(CLIError) -> [String] {
+  func selectedFeatureNames(_ requested: [String], defaultingToAll: Bool = false)
+    throws(CLIError) -> [String]
+  {
+    if requested.isEmpty { return defaultingToAll ? featureNames : [] }
     if requested.contains("all") {
       guard requested == ["all"] else { throw CLIError("Use 'all' alone") }
       return featureNames
     }
-    for name in requested where features[name] == nil {
-      throw CLIError("Unknown feature: \(name)")
-    }
+    try validateFeatureNames(requested)
     return Set(requested).sorted()
+  }
+
+  func validateFeatureNames(_ names: some Sequence<String>) throws(CLIError) {
+    if let unknown = names.first(where: { features[$0] == nil }) {
+      throw CLIError("Unknown feature: \(unknown)")
+    }
   }
 
   func assetSets(
     for names: some Sequence<String>, at keyPath: KeyPath<Feature, [String]> = \.assetSets
   ) -> [String] {
-    Set(names.flatMap { features[$0]![keyPath: keyPath] }).sorted()
+    Set(names.lazy.flatMap { features[$0]![keyPath: keyPath] }).sorted()
   }
 
   func consumers(of assetSet: String) -> [String] {
-    features.filter { $0.value.assetSets.contains(assetSet) }.keys.sorted()
+    consumersByAssetSet[assetSet] ?? []
   }
 
   func presentation(_ name: String) -> FeaturePresentation {
@@ -158,7 +174,7 @@ struct Catalog: Decodable {
   }
 
   func modelTitle(_ assetSet: String, wizard: Bool = false) -> String {
-    guard let display = modelDisplay?[assetSet] else { return assetSet }
+    guard let display = manifest.modelDisplay?[assetSet] else { return assetSet }
     return wizard ? display.wizardTitle : display.title
   }
 
@@ -166,28 +182,43 @@ struct Catalog: Decodable {
     guard let url = Bundle.module.url(forResource: "catalog", withExtension: "json") else {
       throw CLIError("Feature catalog is missing")
     }
-    let catalog = try JSONDecoder().decode(Catalog.self, from: Data(contentsOf: url))
-    guard catalog.schemaVersion == supportedSchemaVersion else {
-      throw CLIError("Unsupported catalog schema version: \(catalog.schemaVersion)")
+    let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: url))
+    return try Catalog(manifest)
+  }
+
+  private init(_ manifest: Manifest) throws(CLIError) {
+    guard manifest.schemaVersion == 1 else {
+      throw CLIError("Unsupported catalog schema version: \(manifest.schemaVersion)")
     }
-    guard Set(catalog.assetTypes.keys).isDisjoint(with: (catalog.recoveryAssetTypes ?? [:]).keys)
+    let recoveryTypes = manifest.recoveryAssetTypes ?? [:]
+    guard recoveryTypes.keys.allSatisfy({ manifest.assetTypes[$0] == nil })
     else { throw CLIError("Cleanup and download-only asset types must be disjoint") }
-    for (name, feature) in catalog.features {
-      guard Set(feature.preferences.map(\.id)).count == feature.preferences.count else {
+
+    let names = manifest.features.keys.sorted()
+    var consumers: [String: [String]] = [:]
+    for name in names {
+      let feature = manifest.features[name]!
+      guard Set(feature.preferences.lazy.map(\.id)).count == feature.preferences.count else {
         throw CLIError("Duplicate preference mappings for \(name)")
       }
-      guard feature.assetSets.allSatisfy({ catalog.assetTypes[$0] != nil })
+      guard feature.assetSets.allSatisfy({ manifest.assetTypes[$0] != nil })
       else { throw CLIError("Incomplete catalog mappings for \(name)") }
       if let recovery = feature.recovery {
         let allowed = Set(feature.downloadAssetSets)
         guard !recovery.name.isEmpty, !recovery.subscriber.isEmpty,
           !recovery.usageAliases.isEmpty || !(recovery.assetSetUsages ?? [:]).isEmpty,
-          allowed.allSatisfy({ catalog.downloadAssetTypes[$0] != nil }),
-          Set((recovery.assetSetUsages ?? [:]).keys).isSubset(of: allowed)
+          allowed.allSatisfy({ manifest.assetTypes[$0] != nil || recoveryTypes[$0] != nil }),
+          allowed.isSuperset(of: (recovery.assetSetUsages ?? [:]).keys)
         else { throw CLIError("Incomplete recovery mappings for \(name)") }
       }
+      // Match each consumer once and preserve the catalog's feature order
+      for assetSet in feature.assetSets where consumers[assetSet]?.last != name {
+        consumers[assetSet, default: []].append(name)
+      }
     }
-    return catalog
+    self.manifest = manifest
+    featureNames = names
+    consumersByAssetSet = consumers
   }
 }
 

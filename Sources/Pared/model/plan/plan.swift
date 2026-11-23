@@ -19,8 +19,7 @@ struct ModelCleanupPlan: Codable {
     var skipped: [Skipped] = []
     for name in targets {
       do {
-        let assets = try catalog.modelAssets([name])
-        for asset in assets { try asset.validateConfiguration() }
+        try catalog.modelAsset(name).validateConfiguration()
         supported.append(name)
       } catch {
         skipped.append(Skipped(name: name, reason: String(describing: error)))

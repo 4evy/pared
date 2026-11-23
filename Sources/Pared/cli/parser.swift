@@ -242,8 +242,8 @@ private struct ModelsInventoryCommand: AsyncParsableCommand {
       types = [assetType]
     } else {
       let catalog = try Catalog.load()
-      let names = try catalog.selectedFeatureNames(features)
-      let targets = catalog.assetSets(for: names.isEmpty ? catalog.featureNames : names)
+      let names = try catalog.selectedFeatureNames(features, defaultingToAll: true)
+      let targets = catalog.assetSets(for: names)
       types = try catalog.modelAssets(targets).map(\.assetType)
     }
     let broker = ModelBrokerInventory()
@@ -267,8 +267,8 @@ private struct ModelsHoldersCommand: AsyncParsableCommand {
 
   mutating func run() async throws {
     let catalog = try Catalog.load()
-    let names = try catalog.selectedFeatureNames(features)
-    let targets = catalog.assetSets(for: names.isEmpty ? catalog.featureNames : names)
+    let names = try catalog.selectedFeatureNames(features, defaultingToAll: true)
+    let targets = catalog.assetSets(for: names)
     let holders = try await modelHolders(catalog.modelAssets(targets))
     FileHandle.standardOutput.write(try jsonData(holders))
     report(
