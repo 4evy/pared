@@ -1,7 +1,8 @@
 import Foundation
 
 private func preferenceValues(policy: Policy, catalog: Catalog) -> [String: [String: ManagementValue]] {
-  let assignments = policy.preferenceAssignments(in: catalog, for: catalog.features.keys)
+  let assignments = policy.preferenceAssignments(in: catalog, for: catalog.features.keys).lazy
+    .filter { catalog.preferenceUUIDs[$0.preference.domain] != nil }
   return Dictionary(grouping: assignments, by: { $0.preference.domain }).mapValues {
     Dictionary(
       $0.map { ($0.preference.key, ManagementValue.boolean($0.value)) },

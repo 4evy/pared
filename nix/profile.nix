@@ -5,6 +5,9 @@
 let
   inherit (policy) restrictions userPreferences;
   preferenceUUIDs = (lib.trivial.importJSON ../Sources/Pared/Resources/catalog.json).preferenceUUIDs;
+  profilePreferences = lib.attrsets.filterAttrs (
+    domain: _: builtins.hasAttr domain preferenceUUIDs
+  ) userPreferences;
 in
 lib.generators.toPlist { escape = true; } {
   PayloadType = "Configuration";
@@ -34,5 +37,5 @@ lib.generators.toPlist { escape = true; } {
     PayloadUUID = preferenceUUIDs.${domain};
     PayloadDisplayName = "AI preferences: ${domain}";
     PayloadContent.${domain}.Forced = [ { mcx_preference_settings = preferences; } ];
-  }) userPreferences;
+  }) profilePreferences;
 }

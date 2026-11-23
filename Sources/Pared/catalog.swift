@@ -78,21 +78,8 @@ struct Feature: Decodable {
   let assetSets: [String]
   let recovery: ModelRecovery?
 
-  var managementRequired: Bool {
-    !restrictions.isEmpty || !declarations.isEmpty || !assetSets.isEmpty
-  }
-
   var modelAvailabilityOnly: Bool {
     preferences.isEmpty && restrictions.isEmpty && declarations.isEmpty
-  }
-
-  var controls: [String] {
-    [
-      ("preferences", !preferences.isEmpty),
-      ("profile", !restrictions.isEmpty || !assetSets.isEmpty),
-      ("MDM", !declarations.isEmpty),
-      ("models", !assetSets.isEmpty),
-    ].compactMap { label, present in present ? label : nil }
   }
 
   var downloadAssetSets: [String] { assetSets + (recovery?.additionalAssetSets ?? []) }
@@ -113,6 +100,22 @@ struct Catalog: Decodable {
   }
 
   var featureNames: [String] { features.keys.sorted() }
+
+  // Domains with a payload UUID can also be exported as forced preferences
+  func hasProfileControls(_ feature: Feature) -> Bool {
+    !feature.restrictions.isEmpty || feature.preferences.contains {
+      preferenceUUIDs[$0.domain] != nil
+    }
+  }
+
+  func controls(for feature: Feature) -> [String] {
+    [
+      ("preferences", !feature.preferences.isEmpty),
+      ("profile", hasProfileControls(feature)),
+      ("MDM", !feature.declarations.isEmpty),
+      ("models", !feature.assetSets.isEmpty),
+    ].compactMap { label, present in present ? label : nil }
+  }
 
   var presentations: [FeaturePresentation] { featureNames.map(presentation) }
 
@@ -172,8 +175,7 @@ struct Catalog: Decodable {
       guard Set(feature.preferences.map(\.id)).count == feature.preferences.count else {
         throw CLIError("Duplicate preference mappings for \(name)")
       }
-      guard feature.assetSets.allSatisfy({ catalog.assetTypes[$0] != nil }),
-        feature.preferences.allSatisfy({ catalog.preferenceUUIDs[$0.domain] != nil })
+      guard feature.assetSets.allSatisfy({ catalog.assetTypes[$0] != nil })
       else { throw CLIError("Incomplete catalog mappings for \(name)") }
       if let recovery = feature.recovery {
         let allowed = Set(feature.downloadAssetSets)

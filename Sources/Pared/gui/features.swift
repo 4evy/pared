@@ -169,8 +169,9 @@ private struct FeatureDetail: View {
 
   private var presentation: FeaturePresentation { store.presentation(name) }
   private var status: FeatureStatus? { store.featureStatuses[name] }
+  private var hasProfileControls: Bool { store.catalog?.hasProfileControls(feature) == true }
   private var requiresDeviceManagement: Bool {
-    !feature.declarations.isEmpty && feature.restrictions.isEmpty && feature.preferences.isEmpty
+    !feature.declarations.isEmpty && !hasProfileControls
   }
 
   var body: some View {
@@ -213,7 +214,7 @@ private struct FeatureDetail: View {
           message:
             "This choice controls whether Pared retains these models. It does not change the feature’s settings in its Apple app.",
           symbol: "cube")
-      } else if feature.managementRequired {
+      } else if hasProfileControls || requiresDeviceManagement {
         VStack(alignment: .leading, spacing: 8) {
           Label(
             requiresDeviceManagement ? "Requires device management" : "Applies through a profile",

@@ -16,7 +16,8 @@ func executeCommand(
   let names = try catalog.selectedFeatureNames(requestedNames)
   if command == .features {
     for (name, feature) in catalog.features.sorted(by: { $0.key < $1.key }) {
-      print("\(name): \(feature.description) [\(feature.controls.joined(separator: ", "))]")
+      let controls = catalog.controls(for: feature).joined(separator: ", ")
+      print("\(name): \(feature.description) [\(controls)]")
     }
     return .success
   }
@@ -38,7 +39,7 @@ func executeCommand(
           name,
           FeatureStatus(
             desired: policy.state(name), preferences: feature.preferences.map(preferenceStatus),
-            managementRequired: feature.managementRequired,
+            managementRequired: catalog.hasProfileControls(feature) || !feature.declarations.isEmpty,
             modelAvailabilityOnly: feature.modelAvailabilityOnly)
         )
       })
